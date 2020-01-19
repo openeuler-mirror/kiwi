@@ -2,15 +2,12 @@
 
 Name:           kiwi
 Version:        9.16.12
-Release:        2
+Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
 URL:            http://suse.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
-
-#Patch1000 comes from Fedora 29
-Patch1000:      kiwi-9.12.8-use-pyxattr.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 %if %{with_python2}
@@ -223,5 +220,7 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Sun Jan 19 2020 sunguoshuai <sunguoshuai@huawei.com> - 9.16.12-3
+
 * Sat Sep 21 2019 openEuler Buildteam <buildteam@openeuler.org> - 9.16.12-2
 - Package init
