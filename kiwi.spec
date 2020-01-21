@@ -5,9 +5,9 @@ Version:        9.16.12
 Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
-
-URL:            http://suse.github.io/kiwi/
+URL:            https://pypi.org/project/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
+Patch1000:      kiwi-9.12.8-use-pyxattr.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 %if %{with_python2}
@@ -220,7 +220,8 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
-* Sun Jan 19 2020 sunguoshuai <sunguoshuai@huawei.com> - 9.16.12-3
+* Tue Jan 21 2019 sunguoshuai <sunguoshuai@huawei.com> - 9.16.12-3
+- Modify the url.
 
 * Sat Sep 21 2019 openEuler Buildteam <buildteam@openeuler.org> - 9.16.12-2
 - Package init
