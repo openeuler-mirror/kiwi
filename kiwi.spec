@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.16.12
-Release:        2
+Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -200,6 +200,8 @@ done
 %defattr(-,root,root)
 %license LICENSE
 %{_bindir}/*
+%exclude %{_bindir}/kiwi-ng-2
+%exclude %{_bindir}/kiwicompat-2
 
 %files cli
 %defattr(-,root,root)
@@ -223,5 +225,8 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Thu Feb 27 2020 lijin Yang <yanglijin@huawei.com> - 9.16.12-3
+- Remove python2 dependency
+
 * Sat Sep 21 2019 openEuler Buildteam <buildteam@openeuler.org> - 9.16.12-2
 - Package init
