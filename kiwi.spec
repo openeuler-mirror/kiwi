@@ -1,16 +1,13 @@
 %{?python_enable_dependency_generator}
 
 Name:           kiwi
-Version:        9.16.12
-Release:        3
+Version:        9.19.15
+Release:        1
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
-URL:            http://suse.github.io/kiwi/
+URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
-
-#Patch1000 comes from Fedora 29
-Patch1000:      kiwi-9.12.8-use-pyxattr.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 %if %{with_python2}
@@ -18,7 +15,6 @@ BuildRequires:  python2-devel python2-setuptools
 %endif
 BuildRequires:  python3-devel python3-setuptools shadow-utils
 
-BuildRequires:  %{_bindir}/sphinx-build-3 python3-sphinxcontrib-spelling 
 BuildRequires:  python3-docopt python3-future python3-lxml python3-pyxattr
 BuildRequires:  python3-six python3-pyyaml python3-requests
 
@@ -40,17 +36,20 @@ Requires:       yum
 Provides:       %{name}-packagemanager:yum
 
 Requires:       device-mapper-multipath dosfstools e2fsprogs
-Requires:       xorriso gdisk grub2 lvm2 mtools parted
+Requires:       xorriso gdisk lvm2 mtools parted
 Requires:       qemu-img rsync squashfs-tools tar >= 1.2.7
 Requires:       %{name}-tools = %{version}-%{release}
+%ifarch x86_64
+Requires:       syslinux
+%endif
 
 Recommends:     debootstrap jing
 
-%ifarch %{arm} aarch64
-Requires:       uboot-tools
+%ifarch aarch64
+Requires:       uboot-tools grub2-efi-aa64-modules
 %endif
 %ifarch x86_64
-Requires:       grub2-efi
+Requires:       grub2-tools-efi grub2-efi-x64-modules grub2-efi-ia32-modules grub2-pc-modules
 %endif
 %if ! %{with_python2}
 Obsoletes:      python2-%{name} < %{version}-%{release}
@@ -109,7 +108,7 @@ needed to serve %{name} built images via PXE.
 
 %package 	cli
 Summary:        Flexible operating system appliance image builder
-Provides:       %{name}-schema = 6.9
+Provides:       %{name}-schema = 7.1
 Provides:       %{name} = %{version}-%{release}
 Requires:       python3-%{name} = %{version}-%{release}
 Requires:       bash-completion
@@ -125,8 +124,8 @@ scripts or configuration data.
 Summary:        Other information about %{name}
 Requires:       bc btrfs-progs coreutils cryptsetup curl device-mapper
 Requires:       dialog dracut e2fsprogs gdisk grep lvm2 mdadm parted
-Requires:       pv util-linux xfsprogs xz xorriso
-Requires:       device-mapper-multipath gawk kexec-tools
+Requires:       pv util-linux xfsprogs xz xorriso parted
+Requires:       gawk kexec-tools
 BuildArch:      noarch
 
 Provides:       dracut-%{name}-lib dracut-%{name}-oem-repart dracut-%{name}-oem-dump
@@ -149,25 +148,21 @@ sed -e "s|#!/usr/bin/env python||" -i kiwi/xml_parse.py
 %build
 %set_build_flags
 
-%make_build -C doc man SPHINXBUILD=sphinx-build-3
-
-%if %{with_python2}
-%py2_build
-%endif
 %py3_build
 
 %install
-%if %{with_python2}
-%py2_install
-%endif
 %py3_install
+make buildroot=%{buildroot}/ install_dracut
 
 mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
-mv %{buildroot}%{_sysconfdir}/bash_completion.d/kiwi-ng-3.sh %{buildroot}%{_datadir}/bash-completion/completions/kiwi-ng
+mv %{buildroot}%{_sysconfdir}/bash_completion.d/kiwi-ng.sh %{buildroot}%{_datadir}/bash-completion/completions/kiwi-ng
 
 rm -rf %{buildroot}%{_sysconfdir}/bash_completion.d
 
 rm -rf %{buildroot}%{_docdir}/packages
+
+mv %{buildroot}%{_bindir}/kiwi-ng %{buildroot}%{_bindir}/kiwi-ng-3
+mv %{buildroot}%{_bindir}/kiwicompat %{buildroot}%{_bindir}/kiwicompat-3
 
 ln -sr %{buildroot}%{_bindir}/kiwi-ng %{buildroot}%{_bindir}/kiwi
 ln -sr %{buildroot}%{_bindir}/kiwi-ng-3 %{buildroot}%{_bindir}/kiwi-ng
@@ -182,14 +177,6 @@ done
 
 %files systemdeps
 
-%if %{with_python2}
-%files -n python2-%{name}
-%defattr(-,root,root)
-%license LICENSE
-%{_bindir}/%{name}*
-%{python2_sitelib}/%{name}*/
-%endif
-
 %files -n python3-%{name}
 %defattr(-,root,root)
 %license LICENSE
@@ -200,13 +187,12 @@ done
 %defattr(-,root,root)
 %license LICENSE
 %{_bindir}/*
-%exclude %{_bindir}/kiwi-ng-2
-%exclude %{_bindir}/kiwicompat-2
 
 %files cli
 %defattr(-,root,root)
 %{_bindir}/%{name}*
 %{_datadir}/bash-completion/completions/%{name}-ng
+%config(noreplace) %{_sysconfdir}/kiwi.yml
 
 %ifarch %{ix86} x86_64
 %files pxeboot
@@ -225,6 +211,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Wed Mar 18 2020 zhuchunyi <zhuchunyi@huawei.com> - 9.19.15-1
+- upgrade kiwi
+
 * Thu Feb 27 2020 lijin Yang <yanglijin@huawei.com> - 9.16.12-3
 - Remove python2 dependency
 
