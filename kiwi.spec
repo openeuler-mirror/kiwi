@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.19.15
-Release:        1
+Release:        2
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -10,9 +10,6 @@ URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
 
 BuildRequires:  bash-completion dracut fdupes gcc make
-%if %{with_python2}
-BuildRequires:  python2-devel python2-setuptools
-%endif
 BuildRequires:  python3-devel python3-setuptools shadow-utils
 
 BuildRequires:  python3-docopt python3-future python3-lxml python3-pyxattr
@@ -51,29 +48,11 @@ Requires:       uboot-tools grub2-efi-aa64-modules
 %ifarch x86_64
 Requires:       grub2-tools-efi grub2-efi-x64-modules grub2-efi-ia32-modules grub2-pc-modules
 %endif
-%if ! %{with_python2}
 Obsoletes:      python2-%{name} < %{version}-%{release}
-%endif
 
 %description 	systemdeps
 This metapackage installs the necessary system dependencies
 to run KIWI.
-
-%if %{with_python2}
-%package 	-n python2-%{name}
-Summary:        %{name} - Python 2 implementation
-Requires:       %{name}-systemdeps = %{version}-%{release}
-Requires:       python2-setuptools
-
-Conflicts:      flumotion < 0.11.0.1-9
-BuildArch:      noarch
-%{?python_provide:%python_provide python2-%{name}}
-
-%description 	-n python2-%{name}
-Python 2 package of the %{name}. Provides an operating system
-image builder for Linux supported hardware platforms and for
-virtualization,such as Xen, KVM, VMware, EC2 and so on.
-%endif
 
 %package 	-n python3-%{name}
 Summary:        %{name} - Python 3 implementation
@@ -211,6 +190,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Sat Mar 21 2020 openEuler Buildteam <buildteam@openeuler.org> - 9.19.15-2
+- Delete redundant info in spec
+
 * Wed Mar 18 2020 zhuchunyi <zhuchunyi@huawei.com> - 9.19.15-1
 - upgrade kiwi
 
