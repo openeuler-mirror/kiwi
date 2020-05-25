@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.19.15
-Release:        2
+Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -190,6 +190,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Mon May 25 2020 openEuler Buildteam <buildteam@openeuler.org> - 9.19.15-3
+- Rebuild for kiwi
+
 * Sat Mar 21 2020 openEuler Buildteam <buildteam@openeuler.org> - 9.19.15-2
 - Delete redundant info in spec
 
