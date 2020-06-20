@@ -1,8 +1,8 @@
 %{?python_enable_dependency_generator}
 
 Name:           kiwi
-Version:        9.19.15
-Release:        3
+Version:        9.20.12
+Release:        1
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -190,6 +190,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Sat Jun 20 2020 jixinjie <jixinjie@huawei.com> - 9.20.12-1
+- upgrade kiwi
+
 * Mon May 25 2020 openEuler Buildteam <buildteam@openeuler.org> - 9.19.15-3
 - Rebuild for kiwi
 
