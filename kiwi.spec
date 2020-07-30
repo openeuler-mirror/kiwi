@@ -1,7 +1,7 @@
 %{?python_enable_dependency_generator}
 
 Name:           kiwi
-Version:        9.20.12
+Version:        9.21.5
 Release:        1
 License:        GPLv3+
 Summary:        Flexible operating system image builder
@@ -128,13 +128,12 @@ sed -e "s|#!/usr/bin/env python||" -i kiwi/xml_parse.py
 %set_build_flags
 
 %py3_build
+make CFLAGS="%{build_cflags}" tools
 
 %install
 %py3_install
+make buildroot=%{buildroot}/ install
 make buildroot=%{buildroot}/ install_dracut
-
-mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
-mv %{buildroot}%{_sysconfdir}/bash_completion.d/kiwi-ng.sh %{buildroot}%{_datadir}/bash-completion/completions/kiwi-ng
 
 rm -rf %{buildroot}%{_sysconfdir}/bash_completion.d
 
@@ -170,7 +169,7 @@ done
 %files cli
 %defattr(-,root,root)
 %{_bindir}/%{name}*
-%{_datadir}/bash-completion/completions/%{name}-ng
+%{_datadir}/bash-completion/completions/%{name}-ng.sh
 %config(noreplace) %{_sysconfdir}/kiwi.yml
 
 %ifarch %{ix86} x86_64
@@ -190,6 +189,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Tue Jul 28 2020 xinghe <xinghe1@huawei.com> - 9.21.5-1
+- update version to 9.21.5
+
 * Sat Jun 20 2020 jixinjie <jixinjie@huawei.com> - 9.20.12-1
 - upgrade kiwi
 
