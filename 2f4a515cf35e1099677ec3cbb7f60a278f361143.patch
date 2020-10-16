@@ -1,0 +1,13 @@
+diff --git a/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh b/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
+index 51cef0392b..d900e76cb6 100755
+--- a/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
++++ b/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
+@@ -137,7 +137,7 @@ function get_selected_disk {
+         local count=0
+         local device_index=0
+         for entry in ${disk_list};do
+-            if [ $((count % 3)) -eq 0 ];then
++            if [ $((count % 2)) -eq 0 ];then
+                 device_array[${device_index}]=${entry}
+                 device_index=$((device_index + 1))
+             fi
