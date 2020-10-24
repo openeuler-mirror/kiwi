@@ -1,0 +1,455 @@
+diff --git a/build-tests/arm/fedora/test-image-live/appliance.kiwi b/build-tests/arm/fedora/test-image-live/appliance.kiwi
+index 8e883fe341..15a131cabd 100644
+--- a/build-tests/arm/fedora/test-image-live/appliance.kiwi
++++ b/build-tests/arm/fedora/test-image-live/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="Fedora">
++<image schemaversion="7.3" name="kiwi-test-image-live">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/arm/suse/test-image-live/appliance.kiwi b/build-tests/arm/suse/test-image-live/appliance.kiwi
+index ac14f7b123..6b6bb7053c 100644
+--- a/build-tests/arm/suse/test-image-live/appliance.kiwi
++++ b/build-tests/arm/suse/test-image-live/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-live">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/arm/suse/test-image-rpi/appliance.kiwi b/build-tests/arm/suse/test-image-rpi/appliance.kiwi
+index 91d4b6a5fe..0c74947049 100644
+--- a/build-tests/arm/suse/test-image-rpi/appliance.kiwi
++++ b/build-tests/arm/suse/test-image-rpi/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-rpi">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/ppc/fedora/test-image-disk-simple/appliance.kiwi b/build-tests/ppc/fedora/test-image-disk-simple/appliance.kiwi
+index 22951b6764..660db15a2c 100644
+--- a/build-tests/ppc/fedora/test-image-disk-simple/appliance.kiwi
++++ b/build-tests/ppc/fedora/test-image-disk-simple/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="Fedora">
++<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/ppc/sle15/test-image-disk/appliance.kiwi b/build-tests/ppc/sle15/test-image-disk/appliance.kiwi
+index 8a3c00a902..55aafd9af2 100644
+--- a/build-tests/ppc/sle15/test-image-disk/appliance.kiwi
++++ b/build-tests/ppc/sle15/test-image-disk/appliance.kiwi
+@@ -2,7 +2,7 @@
+ 
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="SLE15">
++<image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/ppc/suse/test-image-disk-simple/appliance.kiwi b/build-tests/ppc/suse/test-image-disk-simple/appliance.kiwi
+index 98dfd39f2b..bfc6e5b0de 100644
+--- a/build-tests/ppc/suse/test-image-disk-simple/appliance.kiwi
++++ b/build-tests/ppc/suse/test-image-disk-simple/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/ppc/suse/test-image-disk/appliance.kiwi b/build-tests/ppc/suse/test-image-disk/appliance.kiwi
+index 848e64d929..8e11624f6b 100644
+--- a/build-tests/ppc/suse/test-image-disk/appliance.kiwi
++++ b/build-tests/ppc/suse/test-image-disk/appliance.kiwi
+@@ -2,7 +2,7 @@
+ 
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/s390/sle15/test-image-disk/appliance.kiwi b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+index ef43552ca0..03009c86d6 100644
+--- a/build-tests/s390/sle15/test-image-disk/appliance.kiwi
++++ b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+@@ -2,7 +2,7 @@
+ 
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="SLE15">
++<image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi b/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi
+index 097bf81c53..25da4ce49e 100644
+--- a/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi
++++ b/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/s390/suse/test-image-disk/appliance.kiwi b/build-tests/s390/suse/test-image-disk/appliance.kiwi
+index 8bf655ef98..e966776b94 100644
+--- a/build-tests/s390/suse/test-image-disk/appliance.kiwi
++++ b/build-tests/s390/suse/test-image-disk/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/archlinux/test-image-live-disk-kis/appliance.kiwi b/build-tests/x86/archlinux/test-image-live-disk-kis/appliance.kiwi
+index 4f1ed363b0..eadd9314ee 100644
+--- a/build-tests/x86/archlinux/test-image-live-disk-kis/appliance.kiwi
++++ b/build-tests/x86/archlinux/test-image-live-disk-kis/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="Arch">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk-kis">
+     <description type="system">
+         <author>David Cassany</author>
+         <contact>dcassany@suse.com</contact>
+diff --git a/build-tests/x86/centos/test-image-live-disk-v7/appliance.kiwi b/build-tests/x86/centos/test-image-live-disk-v7/appliance.kiwi
+index 7a6a761cb1..5e3f99d13b 100644
+--- a/build-tests/x86/centos/test-image-live-disk-v7/appliance.kiwi
++++ b/build-tests/x86/centos/test-image-live-disk-v7/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="CentOS">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk-v7">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/centos/test-image-live-disk-v8/appliance.kiwi b/build-tests/x86/centos/test-image-live-disk-v8/appliance.kiwi
+index 05a2e21210..cbb61f314d 100644
+--- a/build-tests/x86/centos/test-image-live-disk-v8/appliance.kiwi
++++ b/build-tests/x86/centos/test-image-live-disk-v8/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="CentOS">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk-v8">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/debian/test-image-live-disk/appliance.kiwi b/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
+index ff21afaa57..4981d53343 100644
+--- a/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
++++ b/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="Debian">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/fedora/test-image-live-disk/appliance.kiwi b/build-tests/x86/fedora/test-image-live-disk/appliance.kiwi
+index d4c5eddbe3..8759f09b57 100644
+--- a/build-tests/x86/fedora/test-image-live-disk/appliance.kiwi
++++ b/build-tests/x86/fedora/test-image-live-disk/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="Fedora">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-MicroOS/appliance.kiwi b/build-tests/x86/suse/test-image-MicroOS/appliance.kiwi
+index c63dae30c3..31ba7ff0db 100644
+--- a/build-tests/x86/suse/test-image-MicroOS/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-MicroOS/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-MicroOS">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-azure/appliance.kiwi b/build-tests/x86/suse/test-image-azure/appliance.kiwi
+index cc3cbd7bbb..15c075ca7a 100644
+--- a/build-tests/x86/suse/test-image-azure/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-azure/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-azure">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-custom-partitions/appliance.kiwi b/build-tests/x86/suse/test-image-custom-partitions/appliance.kiwi
+index e895da2eba..bc6a13cc06 100644
+--- a/build-tests/x86/suse/test-image-custom-partitions/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-custom-partitions/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-custom-partitions">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-disk-legacy/appliance.kiwi b/build-tests/x86/suse/test-image-disk-legacy/appliance.kiwi
+index b14c9b6a96..a1d308f864 100644
+--- a/build-tests/x86/suse/test-image-disk-legacy/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-disk-legacy/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk-legacy">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi b/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
+index f8c047a833..157087f5d7 100644
+--- a/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-disk/appliance.kiwi b/build-tests/x86/suse/test-image-disk/appliance.kiwi
+index cfd9f9a198..eed6a3e287 100644
+--- a/build-tests/x86/suse/test-image-disk/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-disk/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi b/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
+index 9369955802..23eff6a5b9 100644
+--- a/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-docker-derived">
+     <description type="system">
+         <author>David Cassany</author>
+         <contact>dcassany@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-docker/appliance.kiwi b/build-tests/x86/suse/test-image-docker/appliance.kiwi
+index 1123d8f5d6..553e28f512 100644
+--- a/build-tests/x86/suse/test-image-docker/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-docker/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-docker">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-ec2/appliance.kiwi b/build-tests/x86/suse/test-image-ec2/appliance.kiwi
+index f91d6a3e8f..fbf2456b63 100644
+--- a/build-tests/x86/suse/test-image-ec2/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-ec2/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-ec2">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-gce/appliance.kiwi b/build-tests/x86/suse/test-image-gce/appliance.kiwi
+index 07efbcc23b..df5288db67 100644
+--- a/build-tests/x86/suse/test-image-gce/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-gce/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-gce">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-live/appliance.kiwi b/build-tests/x86/suse/test-image-live/appliance.kiwi
+index c85c3b0abc..af1f99f58f 100644
+--- a/build-tests/x86/suse/test-image-live/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-live/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-live">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-luks/appliance.kiwi b/build-tests/x86/suse/test-image-luks/appliance.kiwi
+index 932b2667e3..0ce0ab90b4 100644
+--- a/build-tests/x86/suse/test-image-luks/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-luks/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-luks">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-lvm/appliance.kiwi b/build-tests/x86/suse/test-image-lvm/appliance.kiwi
+index 8b1abe1a05..6337c6cf38 100644
+--- a/build-tests/x86/suse/test-image-lvm/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-lvm/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-lvm">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-orthos/appliance.kiwi b/build-tests/x86/suse/test-image-orthos/appliance.kiwi
+index 6687bea182..b2c0730d3b 100644
+--- a/build-tests/x86/suse/test-image-orthos/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-orthos/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-orthos">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.de</contact>
+diff --git a/build-tests/x86/suse/test-image-overlayroot/appliance.kiwi b/build-tests/x86/suse/test-image-overlayroot/appliance.kiwi
+index 80b4851c11..bad171e779 100644
+--- a/build-tests/x86/suse/test-image-overlayroot/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-overlayroot/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-overlayroot">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-pxe/appliance.kiwi b/build-tests/x86/suse/test-image-pxe/appliance.kiwi
+index 13eabaf589..7d6a8e3eed 100644
+--- a/build-tests/x86/suse/test-image-pxe/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-pxe/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-pxe">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-qcow-openstack/appliance.kiwi b/build-tests/x86/suse/test-image-qcow-openstack/appliance.kiwi
+index 774eb68995..ead73a8251 100644
+--- a/build-tests/x86/suse/test-image-qcow-openstack/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-qcow-openstack/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-qcow-openstack">
+     <description type="system">
+         <author>KIWI Team</author>
+         <contact>kiwi-images@googlegroups.com</contact>
+diff --git a/build-tests/x86/suse/test-image-suse-on-dnf/appliance.kiwi b/build-tests/x86/suse/test-image-suse-on-dnf/appliance.kiwi
+index fb24e13022..93035f6013 100644
+--- a/build-tests/x86/suse/test-image-suse-on-dnf/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-suse-on-dnf/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-suse-on-dnf">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-tbz/appliance.kiwi b/build-tests/x86/suse/test-image-tbz/appliance.kiwi
+index 089e8e0340..f89cc49c4d 100644
+--- a/build-tests/x86/suse/test-image-tbz/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-tbz/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-tbz">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-vagrant/appliance.kiwi b/build-tests/x86/suse/test-image-vagrant/appliance.kiwi
+index 98c34b8e4e..cdbff4fc38 100644
+--- a/build-tests/x86/suse/test-image-vagrant/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-vagrant/appliance.kiwi
+@@ -4,7 +4,7 @@
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ <!-- OBS-ExclusiveArch: x86_64 -->
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-vagrant">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/suse/test-image-wsl/appliance.kiwi b/build-tests/x86/suse/test-image-wsl/appliance.kiwi
+index b12a6c82af..775de0a1fa 100644
+--- a/build-tests/x86/suse/test-image-wsl/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-wsl/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="openSUSE-Tumbleweed">
++<image schemaversion="7.3" name="kiwi-test-image-wsl">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi b/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
+index 9a18aa1451..bd27fae4c8 100644
+--- a/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
++++ b/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
+@@ -3,7 +3,7 @@
+ <!-- The line below is required in order to use the multibuild OBS features -->
+ <!-- OBS-Profiles: @BUILD_FLAVOR@ -->
+ 
+-<image schemaversion="7.3" name="Ubuntu">
++<image schemaversion="7.3" name="kiwi-test-image-live-disk">
+     <description type="system">
+         <author>Marcus Schaefer</author>
+         <contact>ms@suse.com</contact>
