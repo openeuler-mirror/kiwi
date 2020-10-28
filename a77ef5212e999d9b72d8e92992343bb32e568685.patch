@@ -1,0 +1,882 @@
+diff --git a/build-tests/s390/sle15/test-image-disk/appliance.kiwi b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+index 03009c86d6..a3863a9e4f 100644
+--- a/build-tests/s390/sle15/test-image-disk/appliance.kiwi
++++ b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+@@ -10,7 +10,7 @@
+     </description>
+     <profiles>
+         <profile name="Virtual" description="Image for use with kvm"/>
+-        <profile name="Physical" description="Image for physical storage disk FBA mode"/>
++        <profile name="Physical" description="Image for physical storage disk CDL mode"/>
+     </profiles>
+     <preferences>
+         <version>1.15.1</version>
+@@ -30,11 +30,11 @@
+         </type>
+     </preferences>
+     <preferences profiles="Physical">
+-        <type image="oem" filesystem="ext4" kernelcmdline="console=ttyS0 cio_ignore=all,!ipldev,!condev">
+-            <bootloader name="grub2_s390x_emu" console="serial" targettype="FBA"/>
++        <type image="oem" filesystem="xfs" kernelcmdline="console=ttyS0 dasd_mod.dasd=ipldev" bootpartition="true" bootfilesystem="ext3" target_blocksize="4096">
++            <bootloader name="grub2_s390x_emu" console="serial" targettype="CDL"/>
+             <oemconfig>
+                 <oem-swap>true</oem-swap>
+-                <oem-swapsize>4096</oem-swapsize>
++                <oem-swapsize>512</oem-swapsize>
+             </oemconfig>
+         </type>
+     </preferences>
+diff --git a/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi b/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi
+deleted file mode 100644
+index 25da4ce49e..0000000000
+--- a/build-tests/s390/suse/test-image-disk-simple/appliance.kiwi
++++ /dev/null
+@@ -1,64 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-
+-<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
+-    <description type="system">
+-        <author>Marcus Schäfer</author>
+-        <contact>ms@suse.com</contact>
+-        <specification>Simple disk test build</specification>
+-    </description>
+-    <preferences>
+-        <version>1.15.1</version>
+-        <packagemanager>zypper</packagemanager>
+-        <locale>en_US</locale>
+-        <keytable>us</keytable>
+-        <timezone>Europe/Berlin</timezone>
+-        <rpm-excludedocs>true</rpm-excludedocs>
+-        <rpm-check-signatures>false</rpm-check-signatures>
+-        <type image="oem" filesystem="xfs" bootpartition="false" kernelcmdline="console=ttyS0" format="qcow2">
+-            <oemconfig>
+-                <oem-resize>false</oem-resize>
+-            </oemconfig>
+-            <bootloader name="grub2_s390x_emu" console="serial"/>
+-        </type>
+-    </preferences>
+-    <users>
+-        <user password="$1$wYJUgpM5$RXMMeASDc035eX.NbYWFl0" home="/root" name="root" groups="root"/>
+-    </users>
+-    <repository type="rpm-md">
+-        <source path="obsrepositories:/"/>
+-    </repository>
+-    <packages type="image">
+-        <package name="patterns-base-minimal_base"/>
+-        <package name="bind-utils"/>
+-        <package name="systemd"/>
+-        <package name="iputils"/>
+-        <package name="vim"/>
+-        <package name="grub2"/>
+-        <package name="grub2-s390x-emu"/>
+-        <package name="blog"/>
+-        <package name="lvm2"/>
+-        <package name="plymouth"/>
+-        <package name="fontconfig"/>
+-        <package name="fonts-config"/>
+-        <package name="tar"/>
+-        <package name="parted"/>
+-        <package name="openssh"/>
+-        <package name="iproute2"/>
+-        <package name="less"/>
+-        <package name="bash-completion"/>
+-        <package name="dhcp-client"/>
+-        <package name="which"/>
+-        <package name="kernel-default"/>
+-        <package name="timezone"/>
+-        <package name="s390-tools"/>
+-    </packages>
+-    <packages type="bootstrap">
+-        <package name="udev"/>
+-        <package name="filesystem"/>
+-        <package name="glibc-locale"/>
+-        <package name="cracklib-dict-full"/>
+-        <package name="ca-certificates"/>
+-        <package name="openSUSE-release"/>
+-        <package name="openSUSE-release-dvd"/>
+-    </packages>
+-</image>
+diff --git a/build-tests/s390/suse/test-image-disk-simple/config.sh b/build-tests/s390/suse/test-image-disk-simple/config.sh
+deleted file mode 100644
+index 3f41e7cf8e..0000000000
+--- a/build-tests/s390/suse/test-image-disk-simple/config.sh
++++ /dev/null
+@@ -1,42 +0,0 @@
+-#!/bin/bash
+-#================
+-# FILE          : config.sh
+-#----------------
+-# PROJECT       : OpenSuSE KIWI Image System
+-# COPYRIGHT     : (c) 2006 SUSE LINUX Products GmbH. All rights reserved
+-#               :
+-# AUTHOR        : Marcus Schaefer <ms@suse.de>
+-#               :
+-# BELONGS TO    : Operating System images
+-#               :
+-# DESCRIPTION   : configuration script for SUSE based
+-#               : operating systems
+-#               :
+-#               :
+-# STATUS        : BETA
+-#----------------
+-#======================================
+-# Functions...
+-#--------------------------------------
+-test -f /.kconfig && . /.kconfig
+-test -f /.profile && . /.profile
+-
+-#======================================
+-# Greeting...
+-#--------------------------------------
+-echo "Configure image: [$kiwi_iname]..."
+-
+-#======================================
+-# Setup baseproduct link
+-#--------------------------------------
+-suseSetupProduct
+-
+-#======================================
+-# Activate services
+-#--------------------------------------
+-suseInsertService sshd
+-
+-#======================================
+-# Setup default target, multi-user
+-#--------------------------------------
+-baseSetRunlevel 3
+diff --git a/build-tests/s390/suse/test-image-disk/appliance.kiwi b/build-tests/s390/suse/test-image-disk/appliance.kiwi
+index e966776b94..39e42cae61 100644
+--- a/build-tests/s390/suse/test-image-disk/appliance.kiwi
++++ b/build-tests/s390/suse/test-image-disk/appliance.kiwi
+@@ -1,24 +1,40 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
++<!-- OBS-Profiles: @BUILD_FLAVOR@ -->
++
+ <image schemaversion="7.3" name="kiwi-test-image-disk">
+     <description type="system">
+-        <author>Marcus Schaefer</author>
++        <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+-        <specification>Disk to run on emulated DASD(FBA mode)</specification>
++        <specification>Virtual and Physical disk image test</specification>
+     </description>
++    <profiles>
++        <profile name="Virtual" description="Image for use with kvm"/>
++        <profile name="Physical" description="Image for physical storage disk CDL mode"/>
++    </profiles>
+     <preferences>
+-        <version>1.1.0</version>
++        <version>1.15.1</version>
+         <packagemanager>zypper</packagemanager>
+-        <rpm-excludedocs>true</rpm-excludedocs>
+-        <rpm-check-signatures>false</rpm-check-signatures>
+         <locale>en_US</locale>
+         <keytable>us</keytable>
+         <timezone>Europe/Berlin</timezone>
+-        <type image="oem" filesystem="ext4" kernelcmdline="cio_ignore=all,!ipldev,!condev">
+-            <bootloader name="grub2_s390x_emu" console="serial" targettype="FBA"/>
++        <rpm-excludedocs>true</rpm-excludedocs>
++        <rpm-check-signatures>false</rpm-check-signatures>
++    </preferences>
++    <preferences profiles="Virtual">
++        <type image="oem" filesystem="xfs" bootpartition="false" kernelcmdline="console=ttyS0" format="qcow2">
++            <oemconfig>
++                <oem-resize>false</oem-resize>
++            </oemconfig>
++            <bootloader name="grub2_s390x_emu" console="serial"/>
++        </type>
++    </preferences>
++    <preferences profiles="Physical">
++        <type image="oem" filesystem="xfs" kernelcmdline="console=ttyS0 dasd_mod.dasd=ipldev" bootpartition="true" bootfilesystem="ext3" target_blocksize="4096">
++            <bootloader name="grub2_s390x_emu" console="serial" targettype="CDL"/>
+             <oemconfig>
+                 <oem-swap>true</oem-swap>
+-                <oem-swapsize>4096</oem-swapsize>
++                <oem-swapsize>512</oem-swapsize>
+             </oemconfig>
+         </type>
+     </preferences>
+@@ -30,7 +46,7 @@
+     </repository>
+     <packages type="image">
+         <package name="patterns-base-minimal_base"/>
+-        <package name="cmsfs"/>
++        <package name="blog"/>
+         <package name="kernel-default"/>
+         <package name="iputils"/>
+         <package name="iproute2"/>
+@@ -38,7 +54,6 @@
+         <package name="s390-tools"/>
+         <package name="grub2-s390x-emu"/>
+         <package name="grub2"/>
+-        <package name="blog"/>
+         <package name="lvm2"/>
+         <package name="tar"/>
+         <package name="parted"/>
+@@ -60,9 +75,11 @@
+         <package name="dracut-kiwi-oem-repart"/>
+     </packages>
+     <packages type="bootstrap">
++        <package name="udev"/>
+         <package name="filesystem"/>
+         <package name="glibc-locale"/>
+         <package name="cracklib-dict-full"/>
++        <package name="ca-certificates"/>
+         <package name="openSUSE-release"/>
+         <package name="openSUSE-release-dvd"/>
+     </packages>
+diff --git a/build-tests/s390/suse/test-image-disk/config.sh b/build-tests/s390/suse/test-image-disk/config.sh
+index e11f266720..3f41e7cf8e 100644
+--- a/build-tests/s390/suse/test-image-disk/config.sh
++++ b/build-tests/s390/suse/test-image-disk/config.sh
+@@ -1,4 +1,20 @@
+ #!/bin/bash
++#================
++# FILE          : config.sh
++#----------------
++# PROJECT       : OpenSuSE KIWI Image System
++# COPYRIGHT     : (c) 2006 SUSE LINUX Products GmbH. All rights reserved
++#               :
++# AUTHOR        : Marcus Schaefer <ms@suse.de>
++#               :
++# BELONGS TO    : Operating System images
++#               :
++# DESCRIPTION   : configuration script for SUSE based
++#               : operating systems
++#               :
++#               :
++# STATUS        : BETA
++#----------------
+ #======================================
+ # Functions...
+ #--------------------------------------
+diff --git a/kiwi/bootloader/config/base.py b/kiwi/bootloader/config/base.py
+index 01f72804a6..7b57e98a9a 100644
+--- a/kiwi/bootloader/config/base.py
++++ b/kiwi/bootloader/config/base.py
+@@ -487,10 +487,16 @@ def _mount_system(
+         self.root_mount = MountManager(
+             device=root_device
+         )
+-        self.boot_mount = MountManager(
+-            device=boot_device,
+-            mountpoint=self.root_mount.mountpoint + '/boot'
+-        )
++        if 's390' in self.arch:
++            self.boot_mount = MountManager(
++                device=boot_device,
++                mountpoint=self.root_mount.mountpoint + '/boot/zipl'
++            )
++        else:
++            self.boot_mount = MountManager(
++                device=boot_device,
++                mountpoint=self.root_mount.mountpoint + '/boot'
++            )
+         if efi_device:
+             self.efi_mount = MountManager(
+                 device=efi_device,
+diff --git a/kiwi/bootloader/config/grub2.py b/kiwi/bootloader/config/grub2.py
+index af65046986..f31df25e8e 100644
+--- a/kiwi/bootloader/config/grub2.py
++++ b/kiwi/bootloader/config/grub2.py
+@@ -39,6 +39,7 @@
+     KiwiBootLoaderGrubModulesError,
+     KiwiBootLoaderGrubSecureBootError,
+     KiwiBootLoaderGrubFontError,
++    KiwiDiskGeometryError
+ )
+ 
+ log = logging.getLogger('kiwi')
+@@ -102,6 +103,7 @@ def post_init(self, custom_args):
+         self.firmware = FirmWare(
+             self.xml_state
+         )
++        self.target_table_type = self.firmware.get_partition_table_type()
+ 
+         self.live_type = self.xml_state.build_type.get_flags()
+         if not self.live_type:
+@@ -553,15 +555,19 @@ def _setup_zipl2grub_conf(self):
+                 zipl_config = zipl_config_file.read()
+                 zipl_config = re.sub(
+                     r'(:menu)',
+-                    r':menu\n'
+-                    r'    targettype = {0}\n'
+-                    r'    targetbase = {1}\n'
+-                    r'    targetblocksize = {2}\n'
+-                    r'    targetoffset = {3}'.format(
++                    ':menu\n'
++                    '    targettype = {0}\n'
++                    '    targetbase = {1}\n'
++                    '    targetblocksize = {2}\n'
++                    '    targetoffset = {3}\n'
++                    '    {4}'.format(
+                         target_type,
+                         self.custom_args['targetbase'],
+                         target_blocksize or 512,
+-                        self._get_partition_start_sector(
++                        self._get_partition_start(
++                            self.custom_args['targetbase']
++                        ),
++                        self._get_disk_geometry(
+                             self.custom_args['targetbase']
+                         )
+                     ),
+@@ -1132,6 +1138,7 @@ def _fix_grub_to_support_dynamic_efi_and_bios_boot(self, config_file):
+     def _fix_grub_root_device_reference(self, config_file, boot_options):
+         if self.root_reference:
+             if self.root_filesystem_is_overlay or \
++               self.arch.startswith('s390') or \
+                Defaults.is_buildservice_worker():
+                 # grub2-mkconfig has no idea how the correct root= setup is
+                 # for disk images created with overlayroot enabled or in a
+@@ -1205,15 +1212,67 @@ def _fix_grub_loader_entries_boot_cmdline(self):
+                 with open(menu_entry_file, 'w') as grub_menu_entry_file:
+                     grub_menu_entry_file.write(menu_entry)
+ 
+-    def _get_partition_start_sector(self, disk_device):
+-        bash_command = ' '.join(
+-            [
+-                'sfdisk', '--dump', disk_device,
+-                '|', 'grep', '"1 :"',
+-                '|', 'cut', '-f1', '-d,',
+-                '|', 'cut', '-f2', '-d='
++    def _get_partition_start(self, disk_device):
++        if self.target_table_type == 'dasd':
++            blocks = self._get_dasd_disk_geometry_element(
++                disk_device, 'blocks per track'
++            )
++            bash_command = [
++                'fdasd', '-f', '-s', '-p', disk_device,
++                '|', 'grep', '"^ "',
++                '|', 'head', '-n', '1',
++                '|', 'tr', '-s', '" "'
+             ]
++            fdasd_call = Command.run(
++                ['bash', '-c', ' '.join(bash_command)]
++            )
++            fdasd_output = fdasd_call.output
++            try:
++                start_track = int(fdasd_output.split(' ')[2].lstrip())
++            except Exception:
++                raise KiwiDiskGeometryError(
++                    'unknown partition format: %s' % fdasd_output
++                )
++            return '{0}'.format(start_track * blocks)
++        else:
++            bash_command = ' '.join(
++                [
++                    'sfdisk', '--dump', disk_device,
++                    '|', 'grep', '"1 :"',
++                    '|', 'cut', '-f1', '-d,',
++                    '|', 'cut', '-f2', '-d='
++                ]
++            )
++            return Command.run(
++                ['bash', '-c', bash_command]
++            ).output.strip()
++
++    def _get_disk_geometry(self, disk_device):
++        disk_geometry = ''
++        if self.target_table_type == 'dasd':
++            disk_geometry = 'targetgeometry = {0},{1},{2}'.format(
++                self._get_dasd_disk_geometry_element(
++                    disk_device, 'cylinders'
++                ),
++                self._get_dasd_disk_geometry_element(
++                    disk_device, 'tracks per cylinder'
++                ),
++                self._get_dasd_disk_geometry_element(
++                    disk_device, 'blocks per track'
++                )
++            )
++        return disk_geometry
++
++    def _get_dasd_disk_geometry_element(self, disk_device, search):
++        fdasd = ['fdasd', '-f', '-p', disk_device]
++        bash_command = fdasd + ['|', 'grep', '"' + search + '"']
++        fdasd_call = Command.run(
++            ['bash', '-c', ' '.join(bash_command)]
+         )
+-        return Command.run(
+-            ['bash', '-c', bash_command]
+-        ).output.strip()
++        fdasd_output = fdasd_call.output
++        try:
++            return int(fdasd_output.split(':')[1].lstrip())
++        except Exception:
++            raise KiwiDiskGeometryError(
++                'unknown format for disk geometry: %s' % fdasd_output
++            )
+diff --git a/kiwi/bootloader/install/grub2.py b/kiwi/bootloader/install/grub2.py
+index 8d395a5cc2..5d908a7b87 100644
+--- a/kiwi/bootloader/install/grub2.py
++++ b/kiwi/bootloader/install/grub2.py
+@@ -160,10 +160,16 @@ def install(self):  # noqa: C901
+         self.root_mount = MountManager(
+             device=self.custom_args['root_device']
+         )
+-        self.boot_mount = MountManager(
+-            device=self.custom_args['boot_device'],
+-            mountpoint=self.root_mount.mountpoint + '/boot'
+-        )
++        if 's390' in self.arch:
++            self.boot_mount = MountManager(
++                device=self.custom_args['boot_device'],
++                mountpoint=self.root_mount.mountpoint + '/boot/zipl'
++            )
++        else:
++            self.boot_mount = MountManager(
++                device=self.custom_args['boot_device'],
++                mountpoint=self.root_mount.mountpoint + '/boot'
++            )
+         if self.custom_args.get('efi_device'):
+             self.efi_mount = MountManager(
+                 device=self.custom_args['efi_device'],
+@@ -230,18 +236,57 @@ def install(self):  # noqa: C901
+             Path.wipe(grubenv)
+ 
+         # install grub2 boot code
+-        Command.run(
+-            [
+-                'chroot', self.root_mount.mountpoint,
+-                self._get_grub2_install_tool_name(self.root_mount.mountpoint)
+-            ] + self.install_arguments + [
+-                '--directory', module_directory,
+-                '--boot-directory', boot_directory,
+-                '--target', self.target,
+-                '--modules', self.modules,
+-                self.install_device
+-            ]
+-        )
++        if self.firmware.get_partition_table_type() == 'dasd':
++            # On s390 and in CDL mode (4k DASD) the call of grub2-install
++            # does not work because grub2-install is not able to identify
++            # a 4k fdasd partitioned device as a grub supported device
++            # and fails. As grub2-install is only used to invoke
++            # grub2-zipl-setup and has no other job to do we can
++            # circumvent this problem by directly calling grub2-zipl-setup
++            # instead.
++            Command.run(
++                [
++                    'chroot', self.root_mount.mountpoint,
++                    'grub2-zipl-setup', '--keep'
++                ]
++            )
++            zipl_config_file = ''.join(
++                [
++                    self.root_mount.mountpoint, '/boot/zipl/config'
++                ]
++            )
++            zipl2grub_config_file_orig = ''.join(
++                [
++                    self.root_mount.mountpoint,
++                    '/etc/default/zipl2grub.conf.in.orig'
++                ]
++            )
++            if os.path.exists(zipl2grub_config_file_orig):
++                Command.run(
++                    [
++                        'mv', zipl2grub_config_file_orig,
++                        zipl2grub_config_file_orig.replace('.orig', '')
++                    ]
++                )
++            if os.path.exists(zipl_config_file):
++                Command.run(
++                    ['mv', zipl_config_file, zipl_config_file + '.kiwi']
++                )
++        else:
++            Command.run(
++                [
++                    'chroot', self.root_mount.mountpoint,
++                    self._get_grub2_install_tool_name(
++                        self.root_mount.mountpoint
++                    )
++                ] + self.install_arguments + [
++                    '--directory', module_directory,
++                    '--boot-directory', boot_directory,
++                    '--target', self.target,
++                    '--modules', self.modules,
++                    self.install_device
++                ]
++            )
+ 
+         if self.firmware and self.firmware.efi_mode() == 'uefi':
+             shim_install = self._get_shim_install_tool_name(
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index e9d7801665..6d9058e71d 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -656,7 +656,10 @@ def _get_exclude_list_for_root_data_sync(self, device_map):
+             exclude_list.append(
+                 '{0}/.*'.format(self.spare_part_mountpoint.lstrip(os.sep))
+             )
+-        if 'boot' in device_map:
++        if 'boot' in device_map and 's390' in self.arch:
++            exclude_list.append('boot/zipl/*')
++            exclude_list.append('boot/zipl/.*')
++        elif 'boot' in device_map:
+             exclude_list.append('boot/*')
+             exclude_list.append('boot/.*')
+         if 'efi' in device_map:
+@@ -708,6 +711,8 @@ def _build_boot_filesystems(self, device_map):
+             if not boot_filesystem:
+                 boot_filesystem = self.requested_filesystem
+             boot_directory = self.root_dir + '/boot/'
++            if 's390' in self.arch:
++                boot_directory = self.root_dir + '/boot/zipl/'
+             log.info(
+                 'Creating boot(%s) filesystem on %s',
+                 boot_filesystem, device_map['boot'].get_device()
+@@ -898,7 +903,10 @@ def _write_generic_fstab(self, device_map, setup):
+             custom_root_mount_args, fs_check_interval
+         )
+         if device_map.get('boot'):
+-            boot_mount_point = '/boot'
++            if 's390' in self.arch:
++                boot_mount_point = '/boot/zipl'
++            else:
++                boot_mount_point = '/boot'
+             self._add_generic_fstab_entry(
+                 device_map['boot'].get_device(), boot_mount_point
+             )
+diff --git a/kiwi/firmware.py b/kiwi/firmware.py
+index bf07e19911..c34508bf8f 100644
+--- a/kiwi/firmware.py
++++ b/kiwi/firmware.py
+@@ -63,9 +63,7 @@ def get_partition_table_type(self):
+         :rtype: str
+         """
+         if 's390' in self.arch:
+-            if self.zipl_target_type and 'LDL' in self.zipl_target_type:
+-                return 'dasd'
+-            elif self.zipl_target_type and 'CDL' in self.zipl_target_type:
++            if self.zipl_target_type and 'CDL' in self.zipl_target_type:
+                 return 'dasd'
+             else:
+                 return 'msdos'
+diff --git a/kiwi/schema/kiwi.rnc b/kiwi/schema/kiwi.rnc
+index fd2598d774..a9dc8d22c7 100644
+--- a/kiwi/schema/kiwi.rnc
++++ b/kiwi/schema/kiwi.rnc
+@@ -2198,9 +2198,10 @@ div {
+         ]
+     k.bootloader.targettype.attribute =
+         ## The device type of the disk on s390. For zFCP
+-        ## devices use SCSI, for  emulated DASD devices use FBA
++        ## devices use SCSI, for  emulated DASD devices use FBA,
++        ## for 4k DASD devices use CDL
+         attribute targettype {
+-            "FBA" | "SCSI"
++            "FBA" | "SCSI" | "CDL"
+         }
+         >> sch:pattern [ id = "targettype" is-a = "bootloader_name_type"
+             sch:param [ name = "attr" value = "targettype" ]
+diff --git a/kiwi/schema/kiwi.rng b/kiwi/schema/kiwi.rng
+index 368aeaf569..270e2eaa83 100644
+--- a/kiwi/schema/kiwi.rng
++++ b/kiwi/schema/kiwi.rng
+@@ -3365,10 +3365,12 @@ is displayed. The attribute is available for the grub loader.</a:documentation>
+     <define name="k.bootloader.targettype.attribute">
+       <attribute name="targettype">
+         <a:documentation>The device type of the disk on s390. For zFCP
+-devices use SCSI, for  emulated DASD devices use FBA</a:documentation>
++devices use SCSI, for  emulated DASD devices use FBA,
++for 4k DASD devices use CDL</a:documentation>
+         <choice>
+           <value>FBA</value>
+           <value>SCSI</value>
++          <value>CDL</value>
+         </choice>
+       </attribute>
+       <sch:pattern id="targettype" is-a="bootloader_name_type">
+diff --git a/test/unit/bootloader/config/base_test.py b/test/unit/bootloader/config/base_test.py
+index 5cb14ad948..8d66fc9a93 100644
+--- a/test/unit/bootloader/config/base_test.py
++++ b/test/unit/bootloader/config/base_test.py
+@@ -277,6 +277,37 @@ def test_get_gfxmode_other_loader(self, mock_get_vga):
+         assert self.bootloader.get_gfxmode('some-loader') == \
+             mock_get_vga.return_value
+ 
++    @patch('kiwi.bootloader.config.base.MountManager')
++    def test_mount_system_s390(self, mock_MountManager):
++        tmp_mount = MagicMock()
++        proc_mount = MagicMock()
++        dev_mount = MagicMock()
++        root_mount = MagicMock()
++        root_mount.mountpoint = 'root_mount_point'
++        root_mount.device = 'rootdev'
++        boot_mount = MagicMock()
++        boot_mount.device = 'bootdev'
++
++        mount_managers = [
++            proc_mount, dev_mount, tmp_mount, boot_mount, root_mount
++        ]
++
++        def mount_managers_effect(**args):
++            return mount_managers.pop()
++
++        self.bootloader.arch = 's390x'
++
++        mock_MountManager.side_effect = mount_managers_effect
++        self.bootloader._mount_system(
++            'rootdev', 'bootdev'
++        )
++        assert mock_MountManager.call_args_list == [
++            call(device='rootdev'),
++            call(device='bootdev', mountpoint='root_mount_point/boot/zipl'),
++            call(device='/dev', mountpoint='root_mount_point/dev'),
++            call(device='/proc', mountpoint='root_mount_point/proc')
++        ]
++
+     @patch('kiwi.bootloader.config.base.MountManager')
+     def test_mount_system(self, mock_MountManager):
+         tmp_mount = MagicMock()
+diff --git a/test/unit/bootloader/config/grub2_test.py b/test/unit/bootloader/config/grub2_test.py
+index ab08b7e139..d1a2252458 100644
+--- a/test/unit/bootloader/config/grub2_test.py
++++ b/test/unit/bootloader/config/grub2_test.py
+@@ -1,6 +1,7 @@
+ import io
+ import os
+ import logging
++from collections import namedtuple
+ from mock import (
+     patch, call, MagicMock, Mock
+ )
+@@ -21,7 +22,8 @@
+     KiwiTemplateError,
+     KiwiBootLoaderGrubDataError,
+     KiwiBootLoaderGrubFontError,
+-    KiwiBootLoaderGrubModulesError
++    KiwiBootLoaderGrubModulesError,
++    KiwiDiskGeometryError
+ )
+ 
+ 
+@@ -36,6 +38,9 @@ def inject_fixtures(self, caplog):
+     def setup(
+         self, mock_machine, mock_theme, mock_firmware
+     ):
++        self.command_type = namedtuple(
++            'command_return_type', ['output']
++        )
+         self.find_grub = {}
+         self.os_exists = {
+             'root_dir/boot/grub2/fonts/unicode.pf2': True,
+@@ -342,7 +347,7 @@ def test_copy_grub_config_to_efi_path(
+     @patch('shutil.copy')
+     @patch('os.path.exists')
+     @patch('kiwi.bootloader.config.grub2.Command.run')
+-    def test_setup_zipl2grub_conf(
++    def test_setup_zipl2grub_conf_512_byte_target(
+         self, mock_Command_run, mock_exists, mock_shutil_copy
+     ):
+         path_return_values = [True, False]
+@@ -352,6 +357,7 @@ def path_exists(arg):
+ 
+         command = Mock()
+         command.output = '  2048'
++        self.bootloader.target_table_type = 'msdos'
+         mock_Command_run.return_value = command
+         mock_exists.side_effect = path_exists
+         xml_state = MagicMock()
+@@ -389,6 +395,120 @@ def path_exists(arg):
+             'root_dir/etc/default/zipl2grub.conf.in'
+         )
+ 
++    @patch('shutil.copy')
++    @patch('os.path.exists')
++    @patch('kiwi.bootloader.config.grub2.Command.run')
++    def test_setup_zipl2grub_conf_4096_byte_target(
++        self, mock_Command_run, mock_exists, mock_shutil_copy
++    ):
++        path_return_values = [True, False]
++        command_return_values = [
++            self.command_type(
++                output='  blocks per track .....: 12\n'
++            ),
++            self.command_type(
++                output=' /dev/loop01 2 6401 6400 1 Linux native\n'
++            ),
++            self.command_type(
++                output='  cylinders ............: 10017\n'
++            ),
++            self.command_type(
++                output='  tracks per cylinder ..: 15\n'
++            ),
++            self.command_type(
++                output='  blocks per track .....: 12\n'
++            )
++        ]
++
++        def path_exists(arg):
++            return path_return_values.pop(0)
++
++        def command_run(arg):
++            return command_return_values.pop(0)
++
++        self.bootloader.target_table_type = 'dasd'
++        mock_Command_run.side_effect = command_run
++        mock_exists.side_effect = path_exists
++        xml_state = MagicMock()
++        xml_state.get_build_type_bootloader_targettype = Mock(
++            return_value='CDL'
++        )
++        xml_state.build_type.get_target_blocksize = Mock(
++            return_value=4096
++        )
++        self.bootloader.xml_state = xml_state
++        with open('../data/etc/default/zipl2grub.conf.in') as zipl_grub:
++            zipl_config = zipl_grub.read()
++        with patch('builtins.open', create=True) as mock_open:
++            file_handle = mock_open.return_value.__enter__.return_value
++            file_handle.read.return_value = zipl_config
++            self.bootloader._setup_zipl2grub_conf()
++            assert \
++                '    targettype = CDL\n' \
++                '    targetbase = rootdev\n' \
++                '    targetblocksize = 4096\n' \
++                '    targetoffset = 24\n' \
++                '    targetgeometry = 10017,15,12' \
++                in file_handle.write.call_args[0][0]
++
++        assert mock_Command_run.call_args_list == [
++            call(
++                [
++                    'bash', '-c',
++                    'fdasd -f -p rootdev | grep "blocks per track"'
++                ]
++            ),
++            call(
++                [
++                    'bash', '-c',
++                    'fdasd -f -s -p rootdev | grep "^ " | '
++                    'head -n 1 | tr -s " "'
++                ]
++            ),
++            call(
++                [
++                    'bash', '-c', 'fdasd -f -p rootdev | grep "cylinders"'
++                ]
++            ),
++            call(
++                [
++                    'bash', '-c',
++                    'fdasd -f -p rootdev | grep "tracks per cylinder"'
++                ]
++            ),
++            call(
++                [
++                    'bash', '-c',
++                    'fdasd -f -p rootdev | grep "blocks per track"'
++                ]
++            )
++        ]
++
++    @patch('kiwi.bootloader.config.grub2.Command.run')
++    @patch.object(BootLoaderConfigGrub2, '_get_dasd_disk_geometry_element')
++    def test_get_partition_start_raises(
++        self, mock_get_dasd_disk_geometry_element, mock_Command_run
++    ):
++        self.bootloader.target_table_type = 'dasd'
++        mock_Command_run.return_value = self.command_type(
++            output='bogus data'
++        )
++        with raises(KiwiDiskGeometryError):
++            self.bootloader._get_partition_start('/dev/disk')
++
++    @patch('kiwi.bootloader.config.grub2.Command.run')
++    def test_get_dasd_disk_geometry_element_raises(
++        self, mock_Command_run
++    ):
++        self.bootloader.target_table_type = 'dasd'
++        mock_Command_run.return_value = self.command_type(
++            output='bogus data'
++        )
++        with raises(KiwiDiskGeometryError):
++            self.bootloader._get_dasd_disk_geometry_element(
++                '/dev/disk', 'tracks per cylinder'
++            )
++
+     @patch('os.path.exists')
+     @patch('kiwi.bootloader.config.grub2.SysConfig')
+     @patch('kiwi.bootloader.config.grub2.Command.run')
+diff --git a/test/unit/bootloader/install/grub2_test.py b/test/unit/bootloader/install/grub2_test.py
+index 47840abca9..2a6815c3d2 100644
+--- a/test/unit/bootloader/install/grub2_test.py
++++ b/test/unit/bootloader/install/grub2_test.py
+@@ -182,6 +182,52 @@ def side_effect(device, mountpoint=None):
+             ]
+         )
+ 
++    @patch('kiwi.bootloader.install.grub2.Path.wipe')
++    @patch('kiwi.bootloader.install.grub2.Path.which')
++    @patch('kiwi.bootloader.install.grub2.Command.run')
++    @patch('kiwi.bootloader.install.grub2.MountManager')
++    @patch('kiwi.bootloader.install.grub2.Defaults.get_grub_path')
++    @patch('kiwi.bootloader.install.grub2.glob.glob')
++    @patch('os.path.exists')
++    def test_install_on_dasd_disk(
++        self, mock_os_path_exists, mock_glob, mock_grub_path,
++        mock_mount_manager, mock_command, mock_which, mock_wipe
++    ):
++        mock_os_path_exists.return_value = True
++        self.firmware.get_partition_table_type = mock.Mock(
++            return_value='dasd'
++        )
++
++        def side_effect(device, mountpoint=None):
++            return self.mount_managers.pop()
++
++        mock_mount_manager.side_effect = side_effect
++
++        self.bootloader.install()
++        self.bootloader.root_mount.mount.assert_called_once_with()
++        self.bootloader.boot_mount.mount.assert_called_once_with()
++        assert mock_command.call_args_list == [
++            call(
++                [
++                    'chroot', 'tmp_root', 'grub2-zipl-setup', '--keep'
++                ]
++            ),
++            call(
++                [
++                    'mv',
++                    'tmp_root/etc/default/zipl2grub.conf.in.orig',
++                    'tmp_root/etc/default/zipl2grub.conf.in'
++                ]
++            ),
++            call(
++                [
++                    'mv',
++                    'tmp_root/boot/zipl/config',
++                    'tmp_root/boot/zipl/config.kiwi'
++                ]
++            )
++        ]
++
+     @patch('kiwi.bootloader.install.grub2.Path.wipe')
+     @patch('kiwi.bootloader.install.grub2.Path.which')
+     @patch('kiwi.bootloader.install.grub2.Command.run')
+diff --git a/test/unit/firmware_test.py b/test/unit/firmware_test.py
+index ccd4a6ce2e..277d7df60b 100644
+--- a/test/unit/firmware_test.py
++++ b/test/unit/firmware_test.py
+@@ -35,8 +35,6 @@ def setup(self, mock_platform):
+         mock_platform.return_value = 's390x'
+         xml_state.build_type.get_firmware.return_value = None
+         xml_state.get_build_type_bootloader_targettype = mock.Mock()
+-        xml_state.get_build_type_bootloader_targettype.return_value = 'LDL'
+-        self.firmware_s390_ldl = FirmWare(xml_state)
+ 
+         xml_state.get_build_type_bootloader_targettype.return_value = 'CDL'
+         self.firmware_s390_cdl = FirmWare(xml_state)
+@@ -65,7 +63,6 @@ def test_get_partition_table_type(self):
+         assert self.firmware_bios.get_partition_table_type() == 'msdos'
+         assert self.firmware_efi.get_partition_table_type() == 'gpt'
+         assert self.firmware_efi_mbr.get_partition_table_type() == 'msdos'
+-        assert self.firmware_s390_ldl.get_partition_table_type() == 'dasd'
+         assert self.firmware_s390_cdl.get_partition_table_type() == 'dasd'
+         assert self.firmware_s390_scsi.get_partition_table_type() == 'msdos'
+ 
