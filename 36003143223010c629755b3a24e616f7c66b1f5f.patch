@@ -1,0 +1,1037 @@
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index 6d9058e71d..d763af2680 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -548,7 +548,7 @@ def create_disk_format(self, result_instance):
+         """
+         if self.image_format:
+             log.info('Creating %s Disk Format', self.image_format)
+-            disk_format = DiskFormat(
++            disk_format = DiskFormat.new(
+                 self.image_format, self.xml_state,
+                 self.root_dir, self.target_dir
+             )
+@@ -566,7 +566,7 @@ def append_unpartitioned_space(self):
+                 'Expanding disk with %d bytes of unpartitioned space',
+                 self.unpartitioned_bytes
+             )
+-            disk_format = DiskFormat(
++            disk_format = DiskFormat.new(
+                 'raw', self.xml_state, self.root_dir, self.target_dir
+             )
+             disk_format.resize_raw_disk(self.unpartitioned_bytes, append=True)
+diff --git a/kiwi/solver/repository/__init__.py b/kiwi/solver/repository/__init__.py
+index 465f357ecc..41f1ec6cfc 100644
+--- a/kiwi/solver/repository/__init__.py
++++ b/kiwi/solver/repository/__init__.py
+@@ -15,29 +15,45 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.solver.repository.suse import SolverRepositorySUSE
+-from kiwi.solver.repository.rpm_md import SolverRepositoryRpmMd
+-from kiwi.solver.repository.rpm_dir import SolverRepositoryRpmDir
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ 
++# project
+ from kiwi.exceptions import KiwiSolverRepositorySetupError
+ 
+ 
+-class SolverRepository:
++class SolverRepository(metaclass=ABCMeta):
+     """
+     **Repository factory for creation of SAT solvables**
+ 
+     * :param object uri: Instance of :class:`Uri`
+     """
+-    def __new__(self, uri, user=None, secret=None):
+-        if uri.repo_type == 'yast2':
+-            return SolverRepositorySUSE(uri, user, secret)
+-        elif uri.repo_type == 'rpm-md':
+-            return SolverRepositoryRpmMd(uri, user, secret)
+-        elif uri.repo_type == 'rpm-dir':
+-            return SolverRepositoryRpmDir(uri, user, secret)
+-        else:
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(uri: object, user: str=None, secret: str=None):  # noqa: E252
++        name_map = {
++            'yast2': ['SolverRepositorySUSE', 'suse'],
++            'rpm-md': ['SolverRepositoryRpmMd', 'rpm_md'],
++            'rpm-dir': ['SolverRepositoryRpmDir', 'rpm_dir']
++        }
++        try:
++            module_name = name_map[uri.repo_type][0]
++            module_namespace = name_map[uri.repo_type][1]
++            repository = importlib.import_module(
++                'kiwi.solver.repository.{0}'.format(module_namespace)
++            )
++            return repository.__dict__[module_name](
++                uri, user, secret
++            )
++        except Exception as issue:
+             raise KiwiSolverRepositorySetupError(
+-                'Support for %s solver repository type not implemented' %
+-                uri.repo_type
++                'Support for {0} solver repotype not implemented: {1}'.format(
++                    uri.repo_type, issue
++                )
+             )
+diff --git a/kiwi/storage/subformat/__init__.py b/kiwi/storage/subformat/__init__.py
+index c36264bb4c..98e5dea357 100644
+--- a/kiwi/storage/subformat/__init__.py
++++ b/kiwi/storage/subformat/__init__.py
+@@ -15,25 +15,17 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.storage.subformat.qcow2 import DiskFormatQcow2
+-from kiwi.storage.subformat.vhd import DiskFormatVhd
+-from kiwi.storage.subformat.vhdx import DiskFormatVhdx
+-from kiwi.storage.subformat.vhdfixed import DiskFormatVhdFixed
+-from kiwi.storage.subformat.vmdk import DiskFormatVmdk
+-from kiwi.storage.subformat.ova import DiskFormatOva
+-from kiwi.storage.subformat.gce import DiskFormatGce
+-from kiwi.storage.subformat.vdi import DiskFormatVdi
+-from kiwi.storage.subformat.base import DiskFormatBase
+-from kiwi.storage.subformat.vagrant_libvirt import DiskFormatVagrantLibVirt
+-from kiwi.storage.subformat.vagrant_virtualbox import DiskFormatVagrantVirtualBox
+-
+-from kiwi.exceptions import (
+-    KiwiDiskFormatSetupError
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
+ )
+ 
++# project
++from kiwi.exceptions import KiwiDiskFormatSetupError
++
+ 
+-class DiskFormat:
++class DiskFormat(metaclass=ABCMeta):
+     """
+     **DiskFormat factory**
+ 
+@@ -42,42 +34,62 @@ class DiskFormat:
+     :param string root_dir: root directory path name
+     :param string target_dir: target directory path name
+     """
+-    def __new__(self, name, xml_state, root_dir, target_dir):  # noqa: C901
+-        custom_args = xml_state.get_build_type_format_options()
+-        if name == 'qcow2':
+-            return DiskFormatQcow2(
+-                xml_state, root_dir, target_dir, custom_args
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @abstractmethod
++    def new(
++        name: str, xml_state: object, root_dir: str, target_dir: str
++    ):  # noqa: C901, E252
++        name_map = {
++            'qcow2': 'Qcow2',
++            'vdi': 'Vdi',
++            'vhd': 'Vhd',
++            'vhdx': 'Vhdx',
++            'vhdfixed': 'VhdFixed',
++            'gce': 'Gce',
++            'vmdk': 'Vmdk',
++            'ova': 'Ova',
++            'vagrant_libvirt': 'VagrantLibVirt',
++            'vagrant_virtualbox': 'VagrantVirtualBox',
++            'base': 'Base'
++        }
++        try:
++            (custom_args, module_namespace) = DiskFormat._custom_args_for_format(
++                name, xml_state
+             )
+-        elif name == 'vdi':
+-            return DiskFormatVdi(
+-                xml_state, root_dir, target_dir, custom_args
++            diskformat = importlib.import_module(
++                'kiwi.storage.subformat.{0}'.format(module_namespace)
+             )
+-        elif name == 'vhd':
+-            return DiskFormatVhd(
++            module_name = 'DiskFormat{0}'.format(name_map[module_namespace])
++            return diskformat.__dict__[module_name](
+                 xml_state, root_dir, target_dir, custom_args
+             )
+-        elif name == 'vhdx':
+-            return DiskFormatVhdx(
+-                xml_state, root_dir, target_dir, custom_args
++        except Exception as issue:
++            raise KiwiDiskFormatSetupError(
++                'No support for {0} disk format: {1}'.format(
++                    module_namespace, issue
++                )
+             )
+-        elif name == 'vhd-fixed':
++
++    @staticmethod
++    def _custom_args_for_format(name: str, xml_state: object):
++        custom_args = xml_state.get_build_type_format_options()
++        module_namespace = name
++        if name == 'vhd-fixed':
+             disk_tag = xml_state.build_type.get_vhdfixedtag()
+             if disk_tag:
+                 custom_args.update(
+                     {'--tag': disk_tag}
+                 )
+-            return DiskFormatVhdFixed(
+-                xml_state, root_dir, target_dir, custom_args
+-            )
++            module_namespace = 'vhdfixed'
+         elif name == 'gce':
+             gce_license_tag = xml_state.build_type.get_gcelicense()
+             if gce_license_tag:
+                 custom_args.update(
+                     {'--tag': gce_license_tag}
+                 )
+-            return DiskFormatGce(
+-                xml_state, root_dir, target_dir, custom_args
+-            )
+         elif name == 'vmdk' or name == 'ova':
+             vmdisk_section = xml_state.get_build_type_vmdisk_section()
+             if vmdisk_section:
+@@ -91,42 +103,15 @@ def __new__(self, name, xml_state, root_dir, target_dir):  # noqa: C901
+                     custom_args.update(
+                         {'adapter_type={0}'.format(disk_controller): None}
+                     )
+-            if name == 'vmdk':
+-                return DiskFormatVmdk(
+-                    xml_state, root_dir, target_dir, custom_args
+-                )
+-            else:
+-                return DiskFormatOva(
+-                    xml_state, root_dir, target_dir, custom_args
+-                )
+         elif name == 'vagrant':
+             vagrant_config = xml_state.get_build_type_vagrant_config_section()
+             if vagrant_config:
+                 custom_args.update(
+                     {'vagrantconfig': vagrant_config}
+                 )
+-                provider = vagrant_config.get_provider()
+-            else:
+-                provider = 'undefined'
+-            if provider == 'libvirt':
+-                return DiskFormatVagrantLibVirt(
+-                    xml_state, root_dir, target_dir, custom_args
+-                )
+-            elif provider == 'virtualbox':
+-                return DiskFormatVagrantVirtualBox(
+-                    xml_state, root_dir, target_dir, custom_args
+-                )
+-            else:
+-                raise KiwiDiskFormatSetupError(
+-                    'No support for {0} format with {1} provider'.format(
+-                        name, provider
+-                    )
++                module_namespace = '{0}_{1}'.format(
++                    name, vagrant_config.get_provider()
+                 )
+         elif name == 'raw':
+-            return DiskFormatBase(
+-                xml_state, root_dir, target_dir, custom_args
+-            )
+-        else:
+-            raise KiwiDiskFormatSetupError(
+-                'No support for {0} disk format'.format(name)
+-            )
++            module_namespace = 'base'
++        return [custom_args, module_namespace]
+diff --git a/kiwi/tasks/image_info.py b/kiwi/tasks/image_info.py
+index c39009844e..37effead28 100644
+--- a/kiwi/tasks/image_info.py
++++ b/kiwi/tasks/image_info.py
+@@ -147,7 +147,7 @@ def _setup_solver(self):
+             repo_secret = xml_repo.get_password()
+             repo_type = xml_repo.get_type()
+             solver.add_repository(
+-                SolverRepository(
++                SolverRepository.new(
+                     Uri(repo_source, repo_type), repo_user, repo_secret
+                 )
+             )
+diff --git a/kiwi/tasks/image_resize.py b/kiwi/tasks/image_resize.py
+index fcb1c5a792..bddb3b26a7 100644
+--- a/kiwi/tasks/image_resize.py
++++ b/kiwi/tasks/image_resize.py
+@@ -99,7 +99,7 @@ def process(self):
+ 
+         disk_format = self.xml_state.build_type.get_format()
+ 
+-        image_format = DiskFormat(
++        image_format = DiskFormat.new(
+             disk_format or 'raw', self.xml_state, image_root,
+             abs_target_dir_path
+         )
+diff --git a/test/unit/builder/disk_test.py b/test/unit/builder/disk_test.py
+index 98db12b84d..9cb38dfa72 100644
+--- a/test/unit/builder/disk_test.py
++++ b/test/unit/builder/disk_test.py
+@@ -1,7 +1,6 @@
+-import mock
+ import sys
+ from mock import (
+-    call, patch, mock_open
++    call, patch, mock_open, Mock, MagicMock
+ )
+ from pytest import raises
+ import kiwi
+@@ -43,13 +42,13 @@ def side_effect(filename):
+             '../data/example_disk_config.xml'
+         )
+         self.device_map = {
+-            'root': MappedDevice('/dev/root-device', mock.Mock()),
+-            'swap': MappedDevice('/dev/swap-device', mock.Mock()),
+-            'readonly': MappedDevice('/dev/readonly-root-device', mock.Mock()),
+-            'boot': MappedDevice('/dev/boot-device', mock.Mock()),
+-            'prep': MappedDevice('/dev/prep-device', mock.Mock()),
+-            'efi': MappedDevice('/dev/efi-device', mock.Mock()),
+-            'spare': MappedDevice('/dev/spare-device', mock.Mock())
++            'root': MappedDevice('/dev/root-device', Mock()),
++            'swap': MappedDevice('/dev/swap-device', Mock()),
++            'readonly': MappedDevice('/dev/readonly-root-device', Mock()),
++            'boot': MappedDevice('/dev/boot-device', Mock()),
++            'prep': MappedDevice('/dev/prep-device', Mock()),
++            'efi': MappedDevice('/dev/efi-device', Mock()),
++            'spare': MappedDevice('/dev/spare-device', Mock())
+         }
+         self.id_map = {
+             'kiwi_RootPart': 1,
+@@ -61,93 +60,86 @@ def side_effect(filename):
+         self.boot_names_type = namedtuple(
+             'boot_names_type', ['kernel_name', 'initrd_name']
+         )
+-        self.block_operation = mock.Mock()
+-        self.block_operation.get_blkid = mock.Mock(
++        self.block_operation = Mock()
++        self.block_operation.get_blkid = Mock(
+             return_value='blkid_result'
+         )
+-        self.block_operation.get_filesystem = mock.Mock(
++        self.block_operation.get_filesystem = Mock(
+             return_value='blkid_result_fs'
+         )
+-        kiwi.builder.disk.BlockID = mock.Mock(
++        kiwi.builder.disk.BlockID = Mock(
+             return_value=self.block_operation
+         )
+-        self.loop_provider = mock.Mock()
+-        kiwi.builder.disk.LoopDevice = mock.Mock(
++        self.loop_provider = Mock()
++        kiwi.builder.disk.LoopDevice = Mock(
+             return_value=self.loop_provider
+         )
+-        self.disk = mock.Mock()
+-        provider = mock.Mock()
+-        provider.get_device = mock.Mock(
++        self.disk = Mock()
++        provider = Mock()
++        provider.get_device = Mock(
+             return_value='/dev/some-loop'
+         )
+         self.disk.storage_provider = provider
+-        self.partitioner = mock.Mock()
+-        self.partitioner.get_id = mock.Mock(
++        self.partitioner = Mock()
++        self.partitioner.get_id = Mock(
+             return_value=1
+         )
+         self.disk.partitioner = self.partitioner
+-        self.disk.get_uuid = mock.Mock(
++        self.disk.get_uuid = Mock(
+             return_value='0815'
+         )
+-        self.disk.get_public_partition_id_map = mock.Mock(
++        self.disk.get_public_partition_id_map = Mock(
+             return_value=self.id_map_sorted
+         )
+-        self.disk.get_device = mock.Mock(
++        self.disk.get_device = Mock(
+             return_value=self.device_map
+         )
+-        kernel_info = mock.Mock()
++        kernel_info = Mock()
+         kernel_info.version = '1.2.3'
+         kernel_info.name = 'vmlinuz-1.2.3-default'
+-        self.kernel = mock.Mock()
+-        self.kernel.get_kernel = mock.Mock(
++        self.kernel = Mock()
++        self.kernel.get_kernel = Mock(
+             return_value=kernel_info
+         )
+-        self.kernel.get_xen_hypervisor = mock.Mock()
+-        self.kernel.copy_kernel = mock.Mock()
+-        self.kernel.copy_xen_hypervisor = mock.Mock()
+-        kiwi.builder.disk.Kernel = mock.Mock(
++        self.kernel.get_xen_hypervisor = Mock()
++        self.kernel.copy_kernel = Mock()
++        self.kernel.copy_xen_hypervisor = Mock()
++        kiwi.builder.disk.Kernel = Mock(
+             return_value=self.kernel
+         )
+-        self.disk.subformat = mock.Mock()
+-        self.disk.subformat.get_target_file_path_for_format = mock.Mock(
+-            return_value='some-target-format-name'
+-        )
+-        kiwi.builder.disk.DiskFormat = mock.Mock(
+-            return_value=self.disk.subformat
+-        )
+-        kiwi.builder.disk.Disk = mock.Mock(
++        kiwi.builder.disk.Disk = Mock(
+             return_value=self.disk
+         )
+-        self.disk_setup = mock.Mock()
++        self.disk_setup = Mock()
+         self.disk_setup.get_disksize_mbytes.return_value = 1024
+         self.disk_setup.boot_partition_size.return_value = 0
+-        self.disk_setup.get_efi_label = mock.Mock(
++        self.disk_setup.get_efi_label = Mock(
+             return_value='EFI'
+         )
+-        self.disk_setup.get_root_label = mock.Mock(
++        self.disk_setup.get_root_label = Mock(
+             return_value='ROOT'
+         )
+-        self.disk_setup.get_boot_label = mock.Mock(
++        self.disk_setup.get_boot_label = Mock(
+             return_value='BOOT'
+         )
+-        self.disk_setup.need_boot_partition = mock.Mock(
++        self.disk_setup.need_boot_partition = Mock(
+             return_value=True
+         )
+-        self.bootloader_install = mock.Mock()
+-        kiwi.builder.disk.BootLoaderInstall.new = mock.MagicMock(
++        self.bootloader_install = Mock()
++        kiwi.builder.disk.BootLoaderInstall.new = MagicMock(
+             return_value=self.bootloader_install
+         )
+-        self.bootloader_config = mock.Mock()
+-        self.bootloader_config.get_boot_cmdline = mock.Mock(
++        self.bootloader_config = Mock()
++        self.bootloader_config.get_boot_cmdline = Mock(
+             return_value='boot_cmdline'
+         )
+-        kiwi.builder.disk.BootLoaderConfig.new = mock.MagicMock(
++        kiwi.builder.disk.BootLoaderConfig.new = MagicMock(
+             return_value=self.bootloader_config
+         )
+-        kiwi.builder.disk.DiskSetup = mock.MagicMock(
++        kiwi.builder.disk.DiskSetup = MagicMock(
+             return_value=self.disk_setup
+         )
+-        self.boot_image_task = mock.Mock()
++        self.boot_image_task = Mock()
+         self.boot_image_task.boot_root_directory = 'boot_dir'
+         self.boot_image_task.kernel_filename = 'kernel'
+         self.boot_image_task.initrd_filename = 'initrd'
+@@ -156,40 +148,40 @@ def side_effect(filename):
+             kernel_name='linux.vmx',
+             initrd_name='initrd.vmx'
+         )
+-        kiwi.builder.disk.BootImage.new = mock.Mock(
++        kiwi.builder.disk.BootImage.new = Mock(
+             return_value=self.boot_image_task
+         )
+-        self.firmware = mock.Mock()
++        self.firmware = Mock()
+         self.firmware.get_legacy_bios_partition_size.return_value = 0
+         self.firmware.get_efi_partition_size.return_value = 0
+         self.firmware.get_prep_partition_size.return_value = 0
+-        self.firmware.efi_mode = mock.Mock(
++        self.firmware.efi_mode = Mock(
+             return_value='efi'
+         )
+-        kiwi.builder.disk.FirmWare = mock.Mock(
++        kiwi.builder.disk.FirmWare = Mock(
+             return_value=self.firmware
+         )
+-        self.setup = mock.Mock()
+-        kiwi.builder.disk.SystemSetup = mock.Mock(
++        self.setup = Mock()
++        kiwi.builder.disk.SystemSetup = Mock(
+             return_value=self.setup
+         )
+-        self.install_image = mock.Mock()
+-        kiwi.builder.disk.InstallImageBuilder = mock.Mock(
++        self.install_image = Mock()
++        kiwi.builder.disk.InstallImageBuilder = Mock(
+             return_value=self.install_image
+         )
+-        self.raid_root = mock.Mock()
++        self.raid_root = Mock()
+         self.raid_root.get_device.return_value = MappedDevice(
+-            '/dev/md0', mock.Mock()
++            '/dev/md0', Mock()
+         )
+-        kiwi.builder.disk.RaidDevice = mock.Mock(
++        kiwi.builder.disk.RaidDevice = Mock(
+             return_value=self.raid_root
+         )
+-        self.luks_root = mock.Mock()
+-        kiwi.builder.disk.LuksDevice = mock.Mock(
++        self.luks_root = Mock()
++        kiwi.builder.disk.LuksDevice = Mock(
+             return_value=self.luks_root
+         )
+-        self.fstab = mock.Mock()
+-        kiwi.builder.disk.Fstab = mock.Mock(
++        self.fstab = Mock()
++        kiwi.builder.disk.Fstab = Mock(
+             return_value=self.fstab
+         )
+         self.disk_builder = DiskBuilder(
+@@ -236,7 +228,7 @@ def test_create_disk_overlay_with_volume_setup_not_supported(self):
+     def test_create_install_media(
+         self, mock_wipe, mock_load, mock_path
+     ):
+-        result_instance = mock.Mock()
++        result_instance = Mock()
+         mock_path.return_value = True
+         self.disk_builder.install_iso = True
+         self.disk_builder.install_pxe = True
+@@ -248,7 +240,7 @@ def test_create_install_media(
+ 
+     @patch('os.path.exists')
+     def test_create_install_media_no_boot_instance_found(self, mock_path):
+-        result_instance = mock.Mock()
++        result_instance = Mock()
+         mock_path.return_value = False
+         self.disk_builder.install_iso = True
+         with raises(KiwiInstallMediaError):
+@@ -257,7 +249,7 @@ def test_create_install_media_no_boot_instance_found(self, mock_path):
+     @patch('os.path.exists')
+     @patch('pickle.load')
+     def test_create_install_media_pickle_load_error(self, mock_load, mock_path):
+-        result_instance = mock.Mock()
++        result_instance = Mock()
+         mock_load.side_effect = Exception
+         mock_path.return_value = True
+         self.disk_builder.install_iso = True
+@@ -274,7 +266,7 @@ def test_create_disk_standard_root_with_kiwi_initrd(
+     ):
+         mock_path.return_value = True
+         mock_rand.return_value = 15
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.initrd_system = 'kiwi'
+@@ -406,12 +398,12 @@ def test_create_disk_standard_root_with_dracut_initrd(
+         )
+         mock_path.return_value = True
+         mock_rand.return_value = 15
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.initrd_system = 'dracut'
+         self.setup.script_exists.return_value = True
+-        disk_system = mock.Mock()
++        disk_system = Mock()
+         mock_SystemSetup.return_value = disk_system
+ 
+         m_open = mock_open()
+@@ -543,10 +535,10 @@ def test_create_disk_standard_root_is_overlay(
+         mock_rand.return_value = 15
+         self.disk_builder.root_filesystem_is_overlay = True
+         self.disk_builder.volume_manager_name = None
+-        squashfs = mock.Mock()
++        squashfs = Mock()
+         mock_squashfs.return_value = squashfs
+         mock_getsize.return_value = 1048576
+-        tempfile = mock.Mock()
++        tempfile = Mock()
+         tempfile.name = 'tempname'
+         mock_temp.return_value = tempfile
+         mock_exists.return_value = True
+@@ -609,11 +601,11 @@ def test_create_disk_standard_root_no_hypervisor_found(
+     def test_create_disk_standard_root_xen_server_boot(
+         self, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.xen_server = True
+-        self.firmware.efi_mode = mock.Mock(
++        self.firmware.efi_mode = Mock(
+             return_value=False
+         )
+ 
+@@ -631,10 +623,10 @@ def test_create_disk_standard_root_s390_boot(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+         self.disk_builder.arch = 's390x'
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+-        self.firmware.efi_mode = mock.Mock(
++        self.firmware.efi_mode = Mock(
+             return_value=False
+         )
+         self.disk_builder.bootloader = 'grub2_s390x_emu'
+@@ -650,10 +642,10 @@ def test_create_disk_standard_root_s390_boot(
+     def test_create_disk_standard_root_secure_boot(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+-        self.firmware.efi_mode = mock.Mock(
++        self.firmware.efi_mode = Mock(
+             return_value='uefi'
+         )
+         with patch('builtins.open'):
+@@ -668,7 +660,7 @@ def test_create_disk_standard_root_secure_boot(
+     def test_create_disk_mdraid_root(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.mdraid = 'mirroring'
+@@ -697,7 +689,7 @@ def test_create_disk_mdraid_root(
+     def test_create_disk_luks_root(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.luks = 'passphrase'
+@@ -733,18 +725,18 @@ def test_create_disk_volume_managed_root(
+         mock_volume_manager, mock_fs
+     ):
+         mock_exists.return_value = True
+-        volume_manager = mock.Mock()
+-        volume_manager.get_device = mock.Mock(
++        volume_manager = Mock()
++        volume_manager.get_device = Mock(
+             return_value={
+-                'root': MappedDevice('/dev/systemVG/LVRoot', mock.Mock()),
+-                'swap': MappedDevice('/dev/systemVG/LVSwap', mock.Mock())
++                'root': MappedDevice('/dev/systemVG/LVRoot', Mock()),
++                'swap': MappedDevice('/dev/systemVG/LVSwap', Mock())
+             }
+         )
+-        volume_manager.get_fstab = mock.Mock(
++        volume_manager.get_fstab = Mock(
+             return_value=['fstab_volume_entries']
+         )
+         mock_volume_manager.return_value = volume_manager
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = 'lvm'
+ 
+@@ -780,7 +772,7 @@ def test_create_disk_volume_managed_root(
+     def test_create_disk_hybrid_gpt_requested(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.install_media = False
+@@ -797,7 +789,7 @@ def test_create_disk_hybrid_gpt_requested(
+     def test_create_disk_force_mbr_requested(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.install_media = False
+@@ -812,8 +804,8 @@ def test_create_disk_force_mbr_requested(
+     def test_create(
+         self, mock_builder
+     ):
+-        result = mock.Mock()
+-        builder = mock.Mock()
++        result = Mock()
++        builder = Mock()
+         builder.create_disk.return_value = result
+         builder.create_install_media.return_value = result
+         mock_builder.return_value = builder
+@@ -831,7 +823,7 @@ def test_create(
+     def test_create_disk_spare_part_requested(
+         self, mock_grub_dir, mock_command, mock_fs
+     ):
+-        filesystem = mock.Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.volume_manager_name = None
+         self.disk_builder.install_media = False
+@@ -879,15 +871,15 @@ def test_create_disk_spare_part_requested(
+ 
+     @patch('kiwi.builder.disk.LoopDevice')
+     @patch('kiwi.builder.disk.Partitioner')
+-    @patch('kiwi.builder.disk.DiskFormat')
++    @patch('kiwi.builder.disk.DiskFormat.new')
+     def test_append_unpartitioned_space(
+         self, mock_diskformat, mock_partitioner, mock_loopdevice
+     ):
+-        loopdevice = mock.Mock()
++        loopdevice = Mock()
+         mock_loopdevice.return_value = loopdevice
+-        partitioner = mock.Mock()
++        partitioner = Mock()
+         mock_partitioner.return_value = partitioner
+-        disk_format = mock.Mock()
++        disk_format = Mock()
+         mock_diskformat.return_value = disk_format
+         self.disk_builder.unpartitioned_bytes = 1024
+         self.disk_builder.append_unpartitioned_space()
+@@ -899,9 +891,12 @@ def test_append_unpartitioned_space(
+ 
+     @patch('kiwi.builder.disk.FileSystem.new')
+     @patch('kiwi.builder.disk.Command.run')
+-    def test_create_disk_format(self, mock_command, mock_fs):
+-        result_instance = mock.Mock()
+-        filesystem = mock.Mock()
++    @patch('kiwi.builder.disk.DiskFormat.new')
++    def test_create_disk_format(self, mock_DiskFormat, mock_command, mock_fs):
++        disk_subformat = Mock()
++        mock_DiskFormat.return_value = disk_subformat
++        result_instance = Mock()
++        filesystem = Mock()
+         mock_fs.return_value = filesystem
+         self.disk_builder.install_media = False
+         self.disk_builder.image_format = 'vmdk'
+@@ -909,4 +904,4 @@ def test_create_disk_format(self, mock_command, mock_fs):
+         with patch('builtins.open'):
+             self.disk_builder.create_disk_format(result_instance)
+ 
+-        self.disk.subformat.create_image_format.assert_called_once_with()
++        disk_subformat.create_image_format.assert_called_once_with()
+diff --git a/test/unit/solver/repository/init_test.py b/test/unit/solver/repository/init_test.py
+index 8c0f95a376..67a96bddd1 100644
+--- a/test/unit/solver/repository/init_test.py
++++ b/test/unit/solver/repository/init_test.py
+@@ -15,22 +15,22 @@ def setup(self):
+ 
+     def test_solver_repository_type_not_implemented(self):
+         with raises(KiwiSolverRepositorySetupError):
+-            SolverRepository(self.uri)
++            SolverRepository.new(self.uri)
+ 
+-    @patch('kiwi.solver.repository.SolverRepositorySUSE')
++    @patch('kiwi.solver.repository.suse.SolverRepositorySUSE')
+     def test_solver_repository_suse(self, mock_suse):
+         self.uri.repo_type = 'yast2'
+-        SolverRepository(self.uri)
++        SolverRepository.new(self.uri)
+         mock_suse.assert_called_once_with(self.uri, None, None)
+ 
+-    @patch('kiwi.solver.repository.SolverRepositoryRpmMd')
++    @patch('kiwi.solver.repository.rpm_md.SolverRepositoryRpmMd')
+     def test_solver_repository_rpm_md(self, mock_rpm_md):
+         self.uri.repo_type = 'rpm-md'
+-        SolverRepository(self.uri)
++        SolverRepository.new(self.uri)
+         mock_rpm_md.assert_called_once_with(self.uri, None, None)
+ 
+-    @patch('kiwi.solver.repository.SolverRepositoryRpmDir')
++    @patch('kiwi.solver.repository.rpm_dir.SolverRepositoryRpmDir')
+     def test_solver_repository_rpm_dir(self, mock_rpm_dir):
+         self.uri.repo_type = 'rpm-dir'
+-        SolverRepository(self.uri)
++        SolverRepository.new(self.uri)
+         mock_rpm_dir.assert_called_once_with(self.uri, None, None)
+diff --git a/test/unit/storage/subformat/init_test.py b/test/unit/storage/subformat/init_test.py
+index f55343122f..0bb2fa2e86 100644
+--- a/test/unit/storage/subformat/init_test.py
++++ b/test/unit/storage/subformat/init_test.py
+@@ -15,67 +15,67 @@ def setup(self):
+ 
+     def test_format_not_implemented(self):
+         with raises(KiwiDiskFormatSetupError):
+-            DiskFormat('foo', self.xml_state, 'root_dir', 'target_dir')
++            DiskFormat.new('foo', self.xml_state, 'root_dir', 'target_dir')
+ 
+     def test_disk_format_vagrant_not_implemented(self):
+         self.xml_state.get_build_type_vagrant_config_section = Mock(
+             return_value=None
+         )
+         with raises(KiwiDiskFormatSetupError):
+-            DiskFormat(
++            DiskFormat.new(
+                 'vagrant', self.xml_state, 'root_dir', 'target_dir'
+             )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatQcow2')
++    @patch('kiwi.storage.subformat.qcow2.DiskFormatQcow2')
+     def test_disk_format_qcow2(self, mock_qcow2):
+-        DiskFormat('qcow2', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('qcow2', self.xml_state, 'root_dir', 'target_dir')
+         mock_qcow2.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVdi')
++    @patch('kiwi.storage.subformat.vdi.DiskFormatVdi')
+     def test_disk_format_vdi(self, mock_vdi):
+-        DiskFormat('vdi', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('vdi', self.xml_state, 'root_dir', 'target_dir')
+         mock_vdi.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVhd')
++    @patch('kiwi.storage.subformat.vhd.DiskFormatVhd')
+     def test_disk_format_vhd(self, mock_vhd):
+-        DiskFormat('vhd', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('vhd', self.xml_state, 'root_dir', 'target_dir')
+         mock_vhd.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVhdx')
++    @patch('kiwi.storage.subformat.vhdx.DiskFormatVhdx')
+     def test_disk_format_vhdx(self, mock_vhdx):
+-        DiskFormat('vhdx', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('vhdx', self.xml_state, 'root_dir', 'target_dir')
+         mock_vhdx.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVhdFixed')
++    @patch('kiwi.storage.subformat.vhdfixed.DiskFormatVhdFixed')
+     def test_disk_format_vhdfixed(self, mock_vhdfixed):
+         self.xml_state.build_type.get_vhdfixedtag = Mock(
+             return_value='disk-tag'
+         )
+-        DiskFormat('vhd-fixed', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('vhd-fixed', self.xml_state, 'root_dir', 'target_dir')
+         mock_vhdfixed.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {'--tag': 'disk-tag'}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatGce')
++    @patch('kiwi.storage.subformat.gce.DiskFormatGce')
+     def test_disk_format_gce(self, mock_gce):
+         self.xml_state.build_type.get_gcelicense = Mock(
+             return_value='gce_license_tag'
+         )
+-        DiskFormat('gce', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('gce', self.xml_state, 'root_dir', 'target_dir')
+         mock_gce.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir',
+             {'--tag': 'gce_license_tag'}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVmdk')
++    @patch('kiwi.storage.subformat.vmdk.DiskFormatVmdk')
+     def test_disk_format_vmdk(self, mock_vmdk):
+         vmdisk = Mock()
+         vmdisk.get_controller = Mock(
+@@ -87,13 +87,13 @@ def test_disk_format_vmdk(self, mock_vmdk):
+         self.xml_state.get_build_type_vmdisk_section = Mock(
+             return_value=vmdisk
+         )
+-        DiskFormat('vmdk', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('vmdk', self.xml_state, 'root_dir', 'target_dir')
+         mock_vmdk.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir',
+             {'adapter_type=controller': None, 'subformat=disk-mode': None}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatOva')
++    @patch('kiwi.storage.subformat.ova.DiskFormatOva')
+     def test_disk_format_ova(self, mock_ova):
+         vmdisk = Mock()
+         vmdisk.get_controller = Mock(
+@@ -105,14 +105,14 @@ def test_disk_format_ova(self, mock_ova):
+         self.xml_state.get_build_type_vmdisk_section = Mock(
+             return_value=vmdisk
+         )
+-        DiskFormat('ova', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('ova', self.xml_state, 'root_dir', 'target_dir')
+         mock_ova.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir',
+             {'adapter_type=controller': None, 'subformat=disk-mode': None}
+         )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatVagrantVirtualBox')
+-    @patch('kiwi.storage.subformat.DiskFormatVagrantLibVirt')
++    @patch('kiwi.storage.subformat.vagrant_virtualbox.DiskFormatVagrantVirtualBox')
++    @patch('kiwi.storage.subformat.vagrant_libvirt.DiskFormatVagrantLibVirt')
+     def test_disk_format_vagrant_libvirt(
+         self, mock_vagrant_libvirt, mock_vagrant_virt_box
+     ):
+@@ -127,7 +127,7 @@ def test_disk_format_vagrant_libvirt(
+             self.xml_state.get_build_type_vagrant_config_section = Mock(
+                 return_value=vagrant_config
+             )
+-            DiskFormat(
++            DiskFormat.new(
+                 'vagrant', self.xml_state, 'root_dir', 'target_dir'
+             )
+             provider_mock.assert_called_once_with(
+@@ -135,9 +135,9 @@ def test_disk_format_vagrant_libvirt(
+                 {'vagrantconfig': vagrant_config}
+             )
+ 
+-    @patch('kiwi.storage.subformat.DiskFormatBase')
++    @patch('kiwi.storage.subformat.base.DiskFormatBase')
+     def test_disk_format_base(self, mock_base):
+-        DiskFormat('raw', self.xml_state, 'root_dir', 'target_dir')
++        DiskFormat.new('raw', self.xml_state, 'root_dir', 'target_dir')
+         mock_base.assert_called_once_with(
+             self.xml_state, 'root_dir', 'target_dir', {}
+         )
+diff --git a/test/unit/tasks/image_resize_test.py b/test/unit/tasks/image_resize_test.py
+index 81248b6e2d..4f6b14c1a1 100644
+--- a/test/unit/tasks/image_resize_test.py
++++ b/test/unit/tasks/image_resize_test.py
+@@ -1,7 +1,9 @@
+ import logging
+ import os
+ import sys
+-from mock import Mock
++from mock import (
++    Mock, patch
++)
+ from pytest import (
+     raises, fixture
+ )
+@@ -41,12 +43,6 @@ def setup(self):
+         )
+         self.partitioner = Mock()
+         self.loop_provider = Mock()
+-        self.image_format = Mock()
+-        self.image_format.has_raw_disk = Mock()
+-        self.image_format.diskname = 'some-disk.raw'
+-        kiwi.tasks.image_resize.DiskFormat = Mock(
+-            return_value=self.image_format
+-        )
+         kiwi.tasks.image_resize.FirmWare = Mock(
+             return_value=self.firmware
+         )
+@@ -75,69 +71,87 @@ def test_process_no_root_directory_specified(self):
+         with raises(KiwiConfigFileNotFound):
+             self.task.process()
+ 
+-    def test_process_no_raw_disk_found(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_no_raw_disk_found(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.has_raw_disk.return_value = False
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+-        self.image_format.has_raw_disk.return_value = False
+         self.task.command_args['resize'] = True
+         with raises(KiwiImageResizeError):
+             self.task.process()
+ 
+-    def test_process_unsupported_size_format(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_unsupported_size_format(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.has_raw_disk.return_value = True
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+         self.task.command_args['--size'] = '20x'
+-        self.image_format.has_raw_disk.return_value = True
+         self.task.command_args['resize'] = True
+         with raises(KiwiSizeError):
+             self.task.process()
+ 
+-    def test_process_image_resize_gb(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_image_resize_gb(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.resize_raw_disk.return_value = True
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+         self.task.command_args['resize'] = True
+-        self.image_format.resize_raw_disk.return_value = True
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+         self.partitioner.resize_table.assert_called_once_with()
+-        self.image_format.resize_raw_disk.assert_called_once_with(
++        image_format.resize_raw_disk.assert_called_once_with(
+             42 * 1024 * 1024 * 1024
+         )
+-        self.image_format.create_image_format.assert_called_once_with()
++        image_format.create_image_format.assert_called_once_with()
+ 
+-    def test_process_image_resize_mb(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_image_resize_mb(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.resize_raw_disk.return_value = True
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+         self.task.command_args['resize'] = True
+         self.task.command_args['--size'] = '42m'
+-        self.image_format.resize_raw_disk.return_value = True
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+         self.partitioner.resize_table.assert_called_once_with()
+-        self.image_format.resize_raw_disk.assert_called_once_with(
++        image_format.resize_raw_disk.assert_called_once_with(
+             42 * 1024 * 1024
+         )
+-        self.image_format.create_image_format.assert_called_once_with()
++        image_format.create_image_format.assert_called_once_with()
+ 
+-    def test_process_image_resize_bytes(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_image_resize_bytes(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.resize_raw_disk.return_value = True
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+         self.task.command_args['resize'] = True
+         self.task.command_args['--size'] = '42'
+-        self.image_format.resize_raw_disk.return_value = True
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+         self.partitioner.resize_table.assert_called_once_with()
+-        self.image_format.resize_raw_disk.assert_called_once_with(
++        image_format.resize_raw_disk.assert_called_once_with(
+             42
+         )
+-        self.image_format.create_image_format.assert_called_once_with()
++        image_format.create_image_format.assert_called_once_with()
+ 
+-    def test_process_image_resize_not_needed(self):
++    @patch('kiwi.tasks.image_resize.DiskFormat.new')
++    def test_process_image_resize_not_needed(self, mock_DiskFormat):
++        image_format = Mock()
++        image_format.resize_raw_disk.return_value = False
++        mock_DiskFormat.return_value = image_format
+         self._init_command_args()
+         self.task.command_args['resize'] = True
+         self.task.command_args['--size'] = '42'
+-        self.image_format.resize_raw_disk.return_value = False
+         with self._caplog.at_level(logging.INFO):
+             self.task.process()
+             self.loop_provider.create.assert_called_once_with(overwrite=False)
+             self.partitioner.resize_table.assert_called_once_with()
+-            self.image_format.resize_raw_disk.assert_called_once_with(
++            image_format.resize_raw_disk.assert_called_once_with(
+                 42
+             )
+             assert 'Loading XML description' in self._caplog.text
