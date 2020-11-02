@@ -1,0 +1,475 @@
+diff --git a/kiwi/package_manager/apt.py b/kiwi/package_manager/apt.py
+index 5fc9ea00f6..24146f08d1 100644
+--- a/kiwi/package_manager/apt.py
++++ b/kiwi/package_manager/apt.py
+@@ -20,9 +20,7 @@
+ import logging
+ 
+ # project
+-from kiwi.defaults import Defaults
+ from kiwi.command import Command
+-from kiwi.utils.sync import DataSync
+ from kiwi.path import Path
+ from kiwi.package_manager.base import PackageManagerBase
+ from kiwi.exceptions import (
+@@ -106,13 +104,16 @@ def request_package_exclusion(self, name):
+             'Package exclusion for (%s) not supported for apt-get', name
+         )
+ 
+-    def process_install_requests_bootstrap(self):
++    def process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process package install requests for bootstrap phase (no chroot)
+         The debootstrap program is used to bootstrap a new system with
+         a collection of predefined packages. The kiwi bootstrap section
+         information is not used in this case
+ 
++        :param object root_bind: instance of RootBind to manage kernel
++            file systems before debootstrap call
++
+         :raises KiwiDebootstrapError: if no main distribution repository
+             is configured, if the debootstrap script is not found or if the
+             debootstrap script execution fails
+@@ -130,7 +131,17 @@ def process_install_requests_bootstrap(self):
+                 'debootstrap script for %s distribution not found' %
+                 self.distribution
+             )
+-        bootstrap_dir = self.root_dir + '.debootstrap'
++
++        # APT package manager does not support bootstrapping. To circumvent
++        # this limitation there is the debootstrap tool for APT based distros.
++        # Because of that there is a little overlap between KIWI and
++        # debootstrap. Debootstrap manages itself the kernel file systems for
++        # chroot environment, thus we need to umount the kernel file systems
++        # before calling debootstrap and remount them afterwards.
++        root_bind.umount_kernel_file_systems()
++        # debootsrap will create its own dev/fd device
++        os.unlink(os.path.normpath(os.sep.join([self.root_dir, 'dev/fd'])))
++
+         if 'apt-get' in self.package_requests:
+             # debootstrap takes care to install apt-get
+             self.package_requests.remove('apt-get')
+@@ -143,31 +154,36 @@ def process_install_requests_bootstrap(self):
+                 cmd.append('--no-check-gpg')
+             if self.deboostrap_minbase:
+                 cmd.append('--variant=minbase')
++            if self.package_requests:
++                cmd.append(
++                    '--include={}'.format(','.join(self.package_requests))
++                )
+             if self.repository.components:
+                 cmd.append(
+                     '--components={0}'.format(
+                         ','.join(self.repository.components)
+                     )
+                 )
++            self.cleanup_requests()
+             cmd.extend([
+-                self.distribution, bootstrap_dir, self.distribution_path
++                self.distribution, self.root_dir, self.distribution_path
+             ])
+-            Command.run(cmd, self.command_env)
+-            data = DataSync(
+-                bootstrap_dir + '/', self.root_dir
+-            )
+-            data.sync_data(
+-                options=Defaults.get_sync_options(),
+-                exclude=['proc', 'sys', 'dev']
+-            )
++
++            return Command.call(cmd, self.command_env)
+         except Exception as e:
+             raise KiwiDebootstrapError(
+                 '%s: %s' % (type(e).__name__, format(e))
+             )
+-        finally:
+-            Path.wipe(bootstrap_dir)
+ 
+-        return self.process_install_requests()
++    def post_process_install_requests_bootstrap(self, root_bind=None):
++        """
++        Mounts the kernel file systems to the chroot environment is
++        ready after the bootstrap procedure
++
++        :param object root_bind: instance of RootBind to manage kernel
++            file systems
++        """
++        root_bind.mount_kernel_file_systems()
+ 
+     def process_install_requests(self):
+         """
+diff --git a/kiwi/package_manager/base.py b/kiwi/package_manager/base.py
+index 470a64d8b5..50c6c63d17 100644
+--- a/kiwi/package_manager/base.py
++++ b/kiwi/package_manager/base.py
+@@ -98,7 +98,7 @@ def request_package_exclusion(self, name):
+         """
+         raise NotImplementedError
+ 
+-    def process_install_requests_bootstrap(self):
++    def process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process package install requests for bootstrap phase (no chroot)
+ 
+@@ -182,7 +182,7 @@ def dump_reload_package_database(self, version=45):
+         """
+         pass
+ 
+-    def post_process_install_requests_bootstrap(self):
++    def post_process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process extra code required after bootstrapping
+ 
+diff --git a/kiwi/package_manager/dnf.py b/kiwi/package_manager/dnf.py
+index 2ed5921a68..d082fb669c 100644
+--- a/kiwi/package_manager/dnf.py
++++ b/kiwi/package_manager/dnf.py
+@@ -84,10 +84,12 @@ def request_package_exclusion(self, name):
+         """
+         self.exclude_requests.append(name)
+ 
+-    def process_install_requests_bootstrap(self):
++    def process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process package install requests for bootstrap phase (no chroot)
+ 
++        :param object root_bind: unused
++
+         :return: process results in command type
+ 
+         :rtype: namedtuple
+@@ -258,10 +260,12 @@ def match_package_deleted(self, package_name, dnf_output):
+             '.*Removing: ' + re.escape(package_name) + '.*', dnf_output
+         )
+ 
+-    def post_process_install_requests_bootstrap(self):
++    def post_process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Move the rpm database to the place as it is expected by the
+         rpm package installed during bootstrap phase
++
++        :param object root_bind: unused
+         """
+         rpmdb = RpmDataBase(self.root_dir)
+         if rpmdb.has_rpm():
+diff --git a/kiwi/package_manager/pacman.py b/kiwi/package_manager/pacman.py
+index 3fc82a2fba..6a85e6b66a 100644
+--- a/kiwi/package_manager/pacman.py
++++ b/kiwi/package_manager/pacman.py
+@@ -94,10 +94,12 @@ def request_package_exclusion(self, name):
+         """
+         self.exclude_requests.append(name)
+ 
+-    def process_install_requests_bootstrap(self):
++    def process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process package install requests for bootstrap phase (no chroot)
+ 
++        :param object root_binf: unused
++
+         :return: process results in command type
+ 
+         :rtype: namedtuple
+diff --git a/kiwi/package_manager/zypper.py b/kiwi/package_manager/zypper.py
+index b67b59c16f..0af6f05608 100644
+--- a/kiwi/package_manager/zypper.py
++++ b/kiwi/package_manager/zypper.py
+@@ -97,10 +97,12 @@ def request_package_exclusion(self, name):
+         """
+         self.exclude_requests.append(name)
+ 
+-    def process_install_requests_bootstrap(self):
++    def process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Process package install requests for bootstrap phase (no chroot)
+ 
++        :param object root_bind: unused
++
+         :return: process results in command type
+ 
+         :rtype: namedtuple
+diff --git a/kiwi/system/prepare.py b/kiwi/system/prepare.py
+index 54601fb036..91483fa0f0 100644
+--- a/kiwi/system/prepare.py
++++ b/kiwi/system/prepare.py
+@@ -219,7 +219,7 @@ def install_bootstrap(self, manager, plus_packages=None):
+             bootstrap_products
+         )
+         process = CommandProcess(
+-            command=manager.process_install_requests_bootstrap(),
++            command=manager.process_install_requests_bootstrap(self.root_bind),
+             log_topic='bootstrap'
+         )
+         try:
+@@ -237,7 +237,7 @@ def install_bootstrap(self, manager, plus_packages=None):
+                         reason=issue
+                     )
+                 )
+-        manager.post_process_install_requests_bootstrap()
++        manager.post_process_install_requests_bootstrap(self.root_bind)
+         # process archive installations
+         if bootstrap_archives:
+             try:
+diff --git a/kiwi/system/root_bind.py b/kiwi/system/root_bind.py
+index b72c5ff6e6..f67b2f24c7 100644
+--- a/kiwi/system/root_bind.py
++++ b/kiwi/system/root_bind.py
+@@ -98,6 +98,19 @@ def mount_kernel_file_systems(self):
+                 '%s: %s' % (type(e).__name__, format(e))
+             )
+ 
++    def umount_kernel_file_systems(self):
++        """
++        Umount kernel filesystems
++
++        :raises KiwiMountKernelFileSystemsError: if some kernel filesystem
++            fails to mount
++        """
++        umounts = [
++            mnt for mnt in self.mount_stack if mnt.device
++            in self.bind_locations
++        ]
++        self._cleanup_mounts(umounts)
++
+     def mount_shared_directory(self, host_dir=None):
+         """
+         Bind mount shared location
+@@ -266,19 +279,22 @@ def _restore_intermediate_config_rpmnew_variants(self):
+ 
+                 shutil.move(config_rpm_new, self.root_dir + config)
+ 
+-    def _cleanup_mount_stack(self):
+-        for mount in reversed(self.mount_stack):
+-            if mount.is_mounted():
++    def _cleanup_mounts(self, umounts):
++        for umount in reversed(umounts):
++            if umount.is_mounted():
+                 try:
+-                    mount.umount_lazy()
++                    umount.umount_lazy()
++                    self.mount_stack.remove(umount)
+                 except Exception as e:
+                     log.warning(
+                         'Image root directory %s not cleanly umounted: %s',
+                         self.root_dir, format(e)
+                     )
+             else:
+-                log.warning('Path %s not a mountpoint', mount.mountpoint)
++                log.warning('Path %s not a mountpoint', umount.mountpoint)
+ 
++    def _cleanup_mount_stack(self):
++        self._cleanup_mounts(self.mount_stack)
+         del self.mount_stack[:]
+ 
+     def _cleanup_dir_stack(self):
+diff --git a/test/unit/package_manager/apt_test.py b/test/unit/package_manager/apt_test.py
+index ad78f459f9..e6873ce680 100644
+--- a/test/unit/package_manager/apt_test.py
++++ b/test/unit/package_manager/apt_test.py
+@@ -1,7 +1,5 @@
+ import logging
+-from mock import (
+-    patch, call
+-)
++from mock import patch
+ from pytest import (
+     raises, fixture
+ )
+@@ -70,102 +68,74 @@ def test_process_install_requests_bootstrap_no_debootstrap_script(
+         with raises(KiwiDebootstrapError):
+             self.manager.process_install_requests_bootstrap()
+ 
+-    @patch('kiwi.command.Command.run')
+-    @patch('os.path.exists')
++    @patch('kiwi.command.Command.call')
++    @patch('kiwi.package_manager.apt.os.path.exists')
++    @patch('kiwi.package_manager.apt.os.unlink')
+     @patch('kiwi.package_manager.apt.Path.wipe')
+     def test_process_install_requests_bootstrap_failed_debootstrap(
+-        self, mock_wipe, mock_exists, mock_run
++        self, mock_wipe, mock_unlink, mock_exists, mock_call
+     ):
+         self.manager.request_package('apt-get')
+-        mock_run.side_effect = Exception
++        mock_call.side_effect = Exception
+         mock_exists.return_value = True
++        mock_root_bind = mock.Mock()
+         with raises(KiwiDebootstrapError):
+-            self.manager.process_install_requests_bootstrap()
++            self.manager.process_install_requests_bootstrap(mock_root_bind)
+ 
+     @patch('kiwi.command.Command.call')
+-    @patch('kiwi.command.Command.run')
+-    @patch('os.path.exists')
+-    @patch('kiwi.package_manager.apt.DataSync')
++    @patch('kiwi.package_manager.apt.os.unlink')
++    @patch('kiwi.package_manager.apt.os.path.exists')
+     def test_process_install_requests_bootstrap(
+-        self, mock_sync, mock_exists, mock_run, mock_call
++        self, mock_exists, mock_unlink, mock_call
+     ):
+         self.manager.request_package('apt-get')
+         self.manager.request_package('vim')
+-        data = mock.Mock()
+-        mock_sync.return_value = data
++        call_result = mock.Mock()
++        call_result.process.communicate.return_value = ('stdout', 'stderr')
++        mock_call.return_value = call_result
++        mock_root_bind = mock.Mock()
+         mock_exists.return_value = True
+-        self.manager.process_install_requests_bootstrap()
+-        mock_sync.assert_called_once_with(
+-            'root-dir.debootstrap/', 'root-dir'
+-        )
+-        data.sync_data.assert_called_once_with(
+-            options=['-a', '-H', '-X', '-A', '--one-file-system', '--inplace'],
+-            exclude=['proc', 'sys', 'dev']
+-        )
+-        assert mock_run.call_args_list == [
+-            call(
+-                [
+-                    'debootstrap', '--keyring=trusted.gpg',
+-                    '--variant=minbase', '--components=main,restricted',
+-                    'xenial', 'root-dir.debootstrap', 'xenial_path'
+-                ], ['env']
+-            ),
+-            call(
+-                ['rm', '-r', '-f', 'root-dir.debootstrap']
+-            ),
+-            call(
+-                [
+-                    'chroot', 'root-dir', 'apt-get',
+-                    '-c', 'apt.conf', '-y', 'update'
+-                ], ['env']
+-            )
+-        ]
+-        mock_call.assert_called_once_with([
+-            'chroot', 'root-dir', 'apt-get',
+-            '-c', 'apt.conf', '-y', 'install', 'vim'],
+-            ['env']
++        self.manager.process_install_requests_bootstrap(mock_root_bind)
++        mock_call.assert_called_once_with(
++            [
++                'debootstrap', '--keyring=trusted.gpg',
++                '--variant=minbase', '--include=vim',
++                '--components=main,restricted', 'xenial',
++                'root-dir', 'xenial_path'
++            ], ['env']
+         )
++        mock_unlink.assert_called_once_with('root-dir/dev/fd')
++        mock_root_bind.umount_kernel_file_systems.assert_called_once_with()
++
++    def test_post_process_install_requests_bootstrap(self):
++        mock_root_bind = mock.Mock()
++        self.manager.post_process_install_requests_bootstrap(mock_root_bind)
++        mock_root_bind.mount_kernel_file_systems.assert_called_once_with()
+ 
+     @patch('kiwi.command.Command.call')
+-    @patch('kiwi.command.Command.run')
+-    @patch('os.path.exists')
+-    @patch('kiwi.package_manager.apt.DataSync')
++    @patch('kiwi.package_manager.apt.os.unlink')
++    @patch('kiwi.package_manager.apt.os.path.exists')
+     def test_process_install_requests_bootstrap_no_gpg_check(
+-        self, mock_sync, mock_exists, mock_run, mock_call
++        self, mock_exists, mock_unlink, mock_call
+     ):
+         self.manager.request_package('apt-get')
+         self.manager.request_package('vim')
+-        data = mock.Mock()
+-        mock_sync.return_value = data
++        call_result = mock.Mock()
++        call_result.process.communicate.return_value = ('stdout', 'stderr')
++        mock_root_bind = mock.Mock()
++        mock_call.return_value = call_result
+         mock_exists.side_effect = lambda x: True if 'xenial' in x else False
+-        self.manager.process_install_requests_bootstrap()
+-        mock_sync.assert_called_once_with(
+-            'root-dir.debootstrap/', 'root-dir'
+-        )
+-        data.sync_data.assert_called_once_with(
+-            options=['-a', '-H', '-X', '-A', '--one-file-system', '--inplace'],
+-            exclude=['proc', 'sys', 'dev']
+-        )
+-        assert mock_run.call_args_list == [
+-            call(
+-                [
+-                    'debootstrap', '--no-check-gpg',
+-                    '--variant=minbase', '--components=main,restricted',
+-                    'xenial', 'root-dir.debootstrap', 'xenial_path'
+-                ], ['env']
+-            ),
+-            call(
+-                [
+-                    'chroot', 'root-dir', 'apt-get',
+-                    '-c', 'apt.conf', '-y', 'update'
+-                ], ['env']
+-            )
+-        ]
+-        mock_call.assert_called_once_with([
+-            'chroot', 'root-dir', 'apt-get',
+-            '-c', 'apt.conf', '-y', 'install', 'vim'],
+-            ['env']
++        self.manager.process_install_requests_bootstrap(mock_root_bind)
++        mock_call.assert_called_once_with(
++            [
++                'debootstrap', '--no-check-gpg',
++                '--variant=minbase', '--include=vim',
++                '--components=main,restricted', 'xenial',
++                'root-dir', 'xenial_path'
++            ], ['env']
+         )
++        mock_unlink.assert_called_once_with('root-dir/dev/fd')
++        mock_root_bind.umount_kernel_file_systems.assert_called_once_with()
+ 
+     @patch('kiwi.command.Command.call')
+     @patch('kiwi.command.Command.run')
+diff --git a/test/unit/system/prepare_test.py b/test/unit/system/prepare_test.py
+index ff21260c10..8d1ef9cdac 100644
+--- a/test/unit/system/prepare_test.py
++++ b/test/unit/system/prepare_test.py
+@@ -291,12 +291,15 @@ def test_install_bootstrap(
+             'kiwi'
+         )
+         self.manager.process_install_requests_bootstrap.assert_called_once_with(
++            self.system.root_bind
+         )
+         mock_tar.assert_called_once_with(
+             '{0}/bootstrap.tgz'.format(self.description_dir)
+         )
+         tar.extract.assert_called_once_with('root_dir')
+-        self.manager.post_process_install_requests_bootstrap.assert_called_once_with()
++        self.manager.post_process_install_requests_bootstrap.assert_called_once_with(
++            self.system.root_bind
++        )
+ 
+     @patch('kiwi.xml_state.XMLState.get_bootstrap_packages_sections')
+     def test_install_bootstrap_skipped(self, mock_bootstrap_section):
+diff --git a/test/unit/system/root_bind_test.py b/test/unit/system/root_bind_test.py
+index 6c5db22c70..6c55cf2955 100644
+--- a/test/unit/system/root_bind_test.py
++++ b/test/unit/system/root_bind_test.py
+@@ -94,6 +94,23 @@ def test_mount_kernel_file_systems(self, mock_mount, mock_exists):
+         )
+         shared_mount.bind_mount.assert_called_once_with()
+ 
++    @patch('kiwi.system.root_bind.MountManager')
++    def test_umount_kernel_file_systems(self, mock_mount):
++        self.mount_manager.device = '/proc'
++        self.mount_manager.is_mounted = Mock(return_value=True)
++        self.bind_root.umount_kernel_file_systems()
++        self.mount_manager.umount_lazy.assert_called_once_with()
++        assert self.bind_root.mount_stack == []
++
++    @patch('kiwi.system.root_bind.MountManager')
++    def test_umount_kernel_file_systems_raises_error(self, mock_mount):
++        self.mount_manager.device = '/proc'
++        self.mount_manager.is_mounted = Mock(return_value=True)
++        self.mount_manager.umount_lazy = Mock(side_effect=Exception)
++        self.bind_root.umount_kernel_file_systems()
++        self.mount_manager.umount_lazy.assert_called_once_with()
++        assert self.bind_root.mount_stack == [self.mount_manager]
++
+     @patch('kiwi.system.root_bind.MountManager')
+     @patch('kiwi.system.root_bind.Path.create')
+     def test_mount_shared_directory(self, mock_path, mock_mount):
