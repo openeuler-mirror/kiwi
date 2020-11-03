@@ -1,0 +1,40 @@
+diff --git a/kiwi/container/oci.py b/kiwi/container/oci.py
+index af88b252a5..7ad5f38eb9 100644
+--- a/kiwi/container/oci.py
++++ b/kiwi/container/oci.py
+@@ -114,10 +114,9 @@ def create(self, filename, base_image):
+         :param string base_image: archive used as a base image
+         """
+         exclude_list = Defaults.get_exclude_list_for_root_data_sync()
+-        exclude_list.append('boot')
+-        exclude_list.append('dev')
+-        exclude_list.append('sys')
+-        exclude_list.append('proc')
++        exclude_list.append('dev/*')
++        exclude_list.append('sys/*')
++        exclude_list.append('proc/*')
+ 
+         oci = OCI()
+         if base_image:
+diff --git a/test/unit/container/oci_test.py b/test/unit/container/oci_test.py
+index 5d25278e3b..01f0d82dff 100644
+--- a/test/unit/container/oci_test.py
++++ b/test/unit/container/oci_test.py
+@@ -134,7 +134,7 @@ def test_create_oci_archive(self, mock_cache, mock_OCI):
+         mock_oci.sync_rootfs.assert_called_once_with(
+             'root_dir', [
+                 'image', '.profile', '.kconfig', '.buildenv',
+-                'var/cache/kiwi', 'boot', 'dev', 'sys', 'proc'
++                'var/cache/kiwi', 'dev/*', 'sys/*', 'proc/*'
+             ]
+         )
+         mock_oci.repack.assert_called_once_with({
+@@ -175,7 +175,7 @@ def test_create_derived_docker_archive(
+         mock_oci.sync_rootfs.assert_called_once_with(
+             'root_dir', [
+                 'image', '.profile', '.kconfig', '.buildenv',
+-                'var/cache/kiwi', 'boot', 'dev', 'sys', 'proc'
++                'var/cache/kiwi', 'dev/*', 'sys/*', 'proc/*'
+             ]
+         )
+         mock_oci.repack.assert_called_once_with({
