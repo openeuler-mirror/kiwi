@@ -1,0 +1,62 @@
+diff --git a/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi b/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
+index 157087f5d7..543c90e8da 100644
+--- a/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-disk-simple/appliance.kiwi
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+-<image schemaversion="7.3" name="kiwi-test-image-disk-simple">
++<image schemaversion="7.3" name="kiwi-test-image-disk-simple" displayname="Simple Disk">
+     <description type="system">
+         <author>Marcus Schäfer</author>
+         <contact>ms@suse.com</contact>
+diff --git a/kiwi/bootloader/config/grub2.py b/kiwi/bootloader/config/grub2.py
+index f31df25e8e..7573c31e2f 100644
+--- a/kiwi/bootloader/config/grub2.py
++++ b/kiwi/bootloader/config/grub2.py
+@@ -94,6 +94,7 @@ def post_init(self, custom_args):
+         self.timeout = self.get_boot_timeout_seconds()
+         self.timeout_style = \
+             self.xml_state.get_build_type_bootloader_timeout_style()
++        self.displayname = self.xml_state.xml_data.get_displayname()
+         self.serial_line_setup = \
+             self.xml_state.get_build_type_bootloader_serial_line_setup()
+         self.continue_on_timeout = self.get_continue_on_timeout()
+@@ -594,12 +595,17 @@ def _setup_default_grub(self):  # noqa: C901
+         * GRUB_CMDLINE_LINUX_DEFAULT
+         * GRUB_GFXMODE
+         * GRUB_TERMINAL
++        * GRUB_DISTRIBUTOR
+         """
+         grub_default_entries = {
+             'GRUB_TIMEOUT': self.timeout,
+             'GRUB_GFXMODE': self.gfxmode,
+             'GRUB_TERMINAL': '"{0}"'.format(self.terminal)
+         }
++        if self.displayname:
++            grub_default_entries['GRUB_DISTRIBUTOR'] = '"{0}"'.format(
++                self.displayname
++            )
+         if self.timeout_style:
+             grub_default_entries['GRUB_TIMEOUT_STYLE'] = self.timeout_style
+         if self.cmdline:
+diff --git a/test/unit/bootloader/config/grub2_test.py b/test/unit/bootloader/config/grub2_test.py
+index d1a2252458..775ad6f1f7 100644
+--- a/test/unit/bootloader/config/grub2_test.py
++++ b/test/unit/bootloader/config/grub2_test.py
+@@ -523,6 +523,7 @@ def test_setup_default_grub(
+         mock_exists.return_value = True
+         self.bootloader.terminal = 'serial'
+         self.bootloader.theme = 'openSUSE'
++        self.bootloader.displayname = 'Bob'
+         self.firmware.efi_mode.return_value = 'efi'
+         self.bootloader._setup_default_grub()
+ 
+@@ -534,6 +535,7 @@ def test_setup_default_grub(
+                 '/boot/grub2/themes/openSUSE/background.png'
+             ),
+             call('GRUB_CMDLINE_LINUX_DEFAULT', '"some-cmdline"'),
++            call('GRUB_DISTRIBUTOR', '"Bob"'),
+             call('GRUB_ENABLE_BLSCFG', 'true'),
+             call('GRUB_ENABLE_CRYPTODISK', 'y'),
+             call('GRUB_GFXMODE', '800x600'),
