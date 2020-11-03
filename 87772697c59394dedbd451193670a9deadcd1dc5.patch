@@ -1,0 +1,277 @@
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index d763af2680..b8e4c94f6f 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -326,7 +326,7 @@ def create_disk(self):  # noqa: C901
+                 'resize_on_boot':
+                     self.disk_resize_requested
+             }
+-            self.volume_manager = VolumeManager(
++            self.volume_manager = VolumeManager.new(
+                 self.volume_manager_name, device_map,
+                 self.root_dir + '/',
+                 self.volumes,
+diff --git a/kiwi/system/prepare.py b/kiwi/system/prepare.py
+index 91483fa0f0..2166c17015 100644
+--- a/kiwi/system/prepare.py
++++ b/kiwi/system/prepare.py
+@@ -75,7 +75,7 @@ def __init__(
+         root.create()
+         image_uri = xml_state.get_derived_from_image_uri()
+         if image_uri:
+-            root_import = RootImport(
++            root_import = RootImport.new(
+                 root_dir, image_uri, xml_state.build_type.get_image()
+             )
+             root_import.sync_data()
+diff --git a/kiwi/system/root_import/__init__.py b/kiwi/system/root_import/__init__.py
+index aa0e4aef23..951dc0fce6 100644
+--- a/kiwi/system/root_import/__init__.py
++++ b/kiwi/system/root_import/__init__.py
+@@ -16,15 +16,19 @@
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+ import logging
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ 
+ # project
+-from kiwi.system.root_import.oci import RootImportOCI
+ from kiwi.exceptions import KiwiRootImportError
+ 
+ log = logging.getLogger('kiwi')
+ 
+ 
+-class RootImport:
++class RootImport(metaclass=ABCMeta):
+     """
+     Root import factory
+ 
+@@ -39,24 +43,39 @@ class RootImport:
+     * :attr:`image_type`
+         type of the image to import
+     """
+-    def __new__(self, root_dir, image_uri, image_type):
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    def new(root_dir: str, image_uri: str, image_type: str):
++        name_map = {
++            'docker': 'OCI',
++            'oci': 'OCI'
++        }
+         log.info(
+             'Importing root from a {0} image type'.format(image_type)
+         )
+-        if image_type == 'docker':
+-            root_import = RootImportOCI(
+-                root_dir, image_uri,
+-                custom_args={'archive_transport': 'docker-archive'}
++        (custom_args, module_namespace) = \
++            RootImport._custom_args_for_root_import(image_type)
++        try:
++            rootimport = importlib.import_module(
++                'kiwi.system.root_import.{0}'.format(module_namespace)
+             )
+-        elif image_type == 'oci':
+-            root_import = RootImportOCI(
+-                root_dir, image_uri,
+-                custom_args={'archive_transport': 'oci-archive'}
++            module_name = 'RootImport{0}'.format(name_map[module_namespace])
++            return rootimport.__dict__[module_name](
++                root_dir, image_uri, custom_args
+             )
+-        else:
++        except Exception as issue:
+             raise KiwiRootImportError(
+-                'Support to import {0} images not implemented'.format(
+-                    image_type
++                'Support to import {0} images not implemented: {1}'.format(
++                    image_type, issue
+                 )
+             )
+-        return root_import
++
++    @staticmethod
++    def _custom_args_for_root_import(image_type: str):
++        if image_type == 'docker':
++            custom_args = {'archive_transport': 'docker-archive'}
++        else:
++            custom_args = {'archive_transport': 'oci-archive'}
++        return [custom_args, 'oci']
+diff --git a/kiwi/volume_manager/__init__.py b/kiwi/volume_manager/__init__.py
+index 0ffcefbdd5..e0a6006a97 100644
+--- a/kiwi/volume_manager/__init__.py
++++ b/kiwi/volume_manager/__init__.py
+@@ -15,16 +15,20 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.volume_manager.lvm import VolumeManagerLVM
+-from kiwi.volume_manager.btrfs import VolumeManagerBtrfs
+-
+-from kiwi.exceptions import (
+-    KiwiVolumeManagerSetupError
++import importlib
++from typing import (
++    Dict, List
++)
++from abc import (
++    ABCMeta,
++    abstractmethod
+ )
+ 
++# project
++from kiwi.exceptions import KiwiVolumeManagerSetupError
+ 
+-class VolumeManager:
++
++class VolumeManager(metaclass=ABCMeta):
+     """
+     **VolumeManager factory**
+ 
+@@ -35,18 +39,30 @@ class VolumeManager:
+     :param list volumes: list of volumes from :class:`XMLState::get_volumes()`
+     :param dict custom_args: dictionary of custom volume manager arguments
+     """
+-    def __new__(
+-        self, name, device_map, root_dir, volumes, custom_args=None
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(
++        name: str, device_map: object, root_dir: str,
++        volumes: List, custom_args: Dict = None
+     ):
+-        if name == 'lvm':
+-            return VolumeManagerLVM(
+-                device_map, root_dir, volumes, custom_args
++        name_map = {
++            'lvm': 'LVM',
++            'btrfs': 'Btrfs'
++        }
++        try:
++            volume_manager = importlib.import_module(
++                'kiwi.volume_manager.{0}'.format(name)
+             )
+-        elif name == 'btrfs':
+-            return VolumeManagerBtrfs(
++            module_name = 'VolumeManager{0}'.format(name_map[name])
++            return volume_manager.__dict__[module_name](
+                 device_map, root_dir, volumes, custom_args
+             )
+-        else:
++        except Exception as issue:
+             raise KiwiVolumeManagerSetupError(
+-                'Support for %s volume manager not implemented' % name
++                'Support for {0} volume manager not implemented: {1}'.format(
++                    name, issue
++                )
+             )
+diff --git a/test/unit/builder/disk_test.py b/test/unit/builder/disk_test.py
+index 9cb38dfa72..85d370ec87 100644
+--- a/test/unit/builder/disk_test.py
++++ b/test/unit/builder/disk_test.py
+@@ -716,7 +716,7 @@ def test_create_disk_luks_root(
+         )
+ 
+     @patch('kiwi.builder.disk.FileSystem.new')
+-    @patch('kiwi.builder.disk.VolumeManager')
++    @patch('kiwi.builder.disk.VolumeManager.new')
+     @patch('kiwi.builder.disk.Command.run')
+     @patch('kiwi.builder.disk.Defaults.get_grub_boot_directory_name')
+     @patch('os.path.exists')
+diff --git a/test/unit/system/prepare_test.py b/test/unit/system/prepare_test.py
+index 8d1ef9cdac..52e8beaf9b 100644
+--- a/test/unit/system/prepare_test.py
++++ b/test/unit/system/prepare_test.py
+@@ -68,7 +68,7 @@ def setup(self, mock_get_logfile, mock_root_bind, mock_root_init):
+         root_bind.setup_intermediate_config.assert_called_once_with()
+         root_bind.mount_kernel_file_systems.assert_called_once_with()
+ 
+-    @patch('kiwi.system.prepare.RootImport')
++    @patch('kiwi.system.prepare.RootImport.new')
+     @patch('kiwi.system.prepare.RootInit')
+     @patch('kiwi.system.prepare.RootBind')
+     @patch('kiwi.logger.Logger.get_logfile')
+diff --git a/test/unit/system/root_import/init_test.py b/test/unit/system/root_import/init_test.py
+index 968e4a51f2..0db76c23df 100644
+--- a/test/unit/system/root_import/init_test.py
++++ b/test/unit/system/root_import/init_test.py
+@@ -7,22 +7,22 @@
+ 
+ 
+ class TestRootImport:
+-    @patch('kiwi.system.root_import.RootImportOCI')
++    @patch('kiwi.system.root_import.oci.RootImportOCI')
+     def test_docker_import(self, mock_docker_import):
+-        RootImport('root_dir', 'file:///image.tar.xz', 'docker')
++        RootImport.new('root_dir', 'file:///image.tar.xz', 'docker')
+         mock_docker_import.assert_called_once_with(
+             'root_dir', 'file:///image.tar.xz',
+-            custom_args={'archive_transport': 'docker-archive'}
++            {'archive_transport': 'docker-archive'}
+         )
+ 
+-    @patch('kiwi.system.root_import.RootImportOCI')
++    @patch('kiwi.system.root_import.oci.RootImportOCI')
+     def test_oci_import(self, mock_oci_import):
+-        RootImport('root_dir', 'file:///image.tar.xz', 'oci')
++        RootImport.new('root_dir', 'file:///image.tar.xz', 'oci')
+         mock_oci_import.assert_called_once_with(
+             'root_dir', 'file:///image.tar.xz',
+-            custom_args={'archive_transport': 'oci-archive'}
++            {'archive_transport': 'oci-archive'}
+         )
+ 
+     def test_not_implemented_import(self):
+         with raises(KiwiRootImportError):
+-            RootImport('root_dir', 'file:///image.tar.xz', 'foo')
++            RootImport.new('root_dir', 'file:///image.tar.xz', 'foo')
+diff --git a/test/unit/volume_manager/init_test.py b/test/unit/volume_manager/init_test.py
+index 3cfc0c50bb..9e55b87ffe 100644
+--- a/test/unit/volume_manager/init_test.py
++++ b/test/unit/volume_manager/init_test.py
+@@ -11,26 +11,22 @@
+ class TestVolumeManager:
+     def test_volume_manager_not_implemented(self):
+         with raises(KiwiVolumeManagerSetupError):
+-            VolumeManager('foo', Mock(), 'root_dir', Mock())
++            VolumeManager.new('foo', Mock(), 'root_dir', [Mock()])
+ 
+-    @patch('kiwi.volume_manager.VolumeManagerLVM')
+-    @patch('os.path.exists')
+-    def test_volume_manager_lvm(self, mock_path, mock_lvm):
+-        mock_path.return_value = True
++    @patch('kiwi.volume_manager.lvm.VolumeManagerLVM')
++    def test_volume_manager_lvm(self, mock_lvm):
+         device_map = Mock()
+-        volumes = Mock()
+-        VolumeManager('lvm', device_map, 'root_dir', volumes)
++        volumes = [Mock()]
++        VolumeManager.new('lvm', device_map, 'root_dir', volumes)
+         mock_lvm.assert_called_once_with(
+             device_map, 'root_dir', volumes, None
+         )
+ 
+-    @patch('kiwi.volume_manager.VolumeManagerBtrfs')
+-    @patch('os.path.exists')
+-    def test_volume_manager_btrfs(self, mock_path, mock_btrfs):
+-        mock_path.return_value = True
++    @patch('kiwi.volume_manager.btrfs.VolumeManagerBtrfs')
++    def test_volume_manager_btrfs(self, mock_btrfs):
+         device_map = Mock()
+-        volumes = Mock()
+-        VolumeManager('btrfs', device_map, 'root_dir', volumes)
++        volumes = [Mock()]
++        VolumeManager.new('btrfs', device_map, 'root_dir', volumes)
+         mock_btrfs.assert_called_once_with(
+             device_map, 'root_dir', volumes, None
+         )
