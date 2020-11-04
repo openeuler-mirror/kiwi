@@ -1,0 +1,33 @@
+diff --git a/kiwi/package_manager/apt.py b/kiwi/package_manager/apt.py
+index 24146f08d1..4fc040c6b0 100644
+--- a/kiwi/package_manager/apt.py
++++ b/kiwi/package_manager/apt.py
+@@ -180,8 +180,8 @@ def post_process_install_requests_bootstrap(self, root_bind=None):
+         Mounts the kernel file systems to the chroot environment is
+         ready after the bootstrap procedure
+ 
+-        :param object root_bind: instance of RootBind to manage kernel
+-            file systems
++        :param object root_bind:
++            instance of RootBind to manage kernel file systems
+         """
+         root_bind.mount_kernel_file_systems()
+ 
+diff --git a/kiwi/package_manager/zypper.py b/kiwi/package_manager/zypper.py
+index 0af6f05608..c38ba93a0f 100644
+--- a/kiwi/package_manager/zypper.py
++++ b/kiwi/package_manager/zypper.py
+@@ -251,10 +251,12 @@ def match_package_deleted(self, package_name, zypper_output):
+             '.*Removing: ' + re.escape(package_name) + '.*', zypper_output
+         )
+ 
+-    def post_process_install_requests_bootstrap(self):
++    def post_process_install_requests_bootstrap(self, root_bind=None):
+         """
+         Move the rpm database to the place as it is expected by the
+         rpm package installed during bootstrap phase
++
++        :param object root_bind: unused
+         """
+         rpmdb = RpmDataBase(self.root_dir)
+         if rpmdb.has_rpm():
