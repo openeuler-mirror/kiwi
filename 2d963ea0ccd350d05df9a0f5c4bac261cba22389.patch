@@ -1,0 +1,13 @@
+diff --git a/doc/source/quickstart.rst b/doc/source/quickstart.rst
+index c3053ac6e7..b48f0ca0b5 100644
+--- a/doc/source/quickstart.rst
++++ b/doc/source/quickstart.rst
+@@ -44,7 +44,7 @@ command in order to build it:
+ 
+ .. code:: bash
+ 
+-    $ sudo kiwi-ng --type oem system build \
++    $ sudo kiwi-ng --profile=Disk --type oem system build \
+         --description kiwi-descriptions/suse/x86_64/{exc_description} \
+         --target-dir /tmp/myimage
+ 
