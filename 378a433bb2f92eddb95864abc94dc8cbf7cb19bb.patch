@@ -1,0 +1,37 @@
+diff --git a/.gitignore b/.gitignore
+index 935255687d..dc8ca2c3f3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,5 @@
+ # completion
+-completion/kiwi-ng.sh
++completion/kiwi-ng
+ 
+ # Schema formats
+ kiwi/schema/kiwi.xsd
+diff --git a/Makefile b/Makefile
+index cced7315a2..dda569fbfb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -47,7 +47,7 @@ install:
+ 	# completion
+ 	install -d -m 755 ${buildroot}usr/share/bash-completion/completions
+ 	$(python) helper/completion_generator.py \
+-		> ${buildroot}usr/share/bash-completion/completions/kiwi-ng.sh
++		> ${buildroot}usr/share/bash-completion/completions/kiwi-ng
+ 	# kiwi default configuration
+ 	install -d -m 755 ${buildroot}etc
+ 	install -m 644 kiwi.yml ${buildroot}etc/kiwi.yml
+diff --git a/package/python-kiwi-spec-template b/package/python-kiwi-spec-template
+index 15e00620f8..c7d853c177 100644
+--- a/package/python-kiwi-spec-template
++++ b/package/python-kiwi-spec-template
+@@ -434,7 +434,7 @@ fi
+ %{_bindir}/kiwi-ng-3*
+ %{_bindir}/kiwicompat-3*
+ %{python3_sitelib}/kiwi*
+-%{_usr}/share/bash-completion/completions/kiwi-ng.sh
++%{_usr}/share/bash-completion/completions/kiwi-ng
+ %{_defaultdocdir}/python-kiwi/LICENSE
+ %{_defaultdocdir}/python-kiwi/README
+ 
