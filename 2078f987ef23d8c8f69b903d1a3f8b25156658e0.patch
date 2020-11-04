@@ -1,0 +1,51 @@
+diff --git a/kiwi/bootloader/config/grub2.py b/kiwi/bootloader/config/grub2.py
+index 7573c31e2f..c826c9099f 100644
+--- a/kiwi/bootloader/config/grub2.py
++++ b/kiwi/bootloader/config/grub2.py
+@@ -1159,9 +1159,9 @@ def _fix_grub_root_device_reference(self, config_file, boot_options):
+                     # grub mkconfig root= settings and replaces it with a
+                     # correct value
+                     # 1. root=LOCAL-KIWI-MAPPED-DEVICE
+-                    # 2. root=.*(lazy)=ANY-LINUX-BY-ID-VALUE
++                    # 2. root=[a-zA-Z]=ANY-LINUX-BY-ID-VALUE
+                     grub_config = re.sub(
+-                        r'(root=.*?=[a-zA-Z0-9:\.-]+)|(root={0})'.format(
++                        r'(root=[a-zA-Z]+=[a-zA-Z0-9:\.-]+)|(root={0})'.format(
+                             boot_options.get('root_device')
+                         ),
+                         '{0}'.format(self.root_reference),
+diff --git a/test/unit/bootloader/config/grub2_test.py b/test/unit/bootloader/config/grub2_test.py
+index 775ad6f1f7..bf5d398141 100644
+--- a/test/unit/bootloader/config/grub2_test.py
++++ b/test/unit/bootloader/config/grub2_test.py
+@@ -664,7 +664,9 @@ def open_file(filename, mode=None):
+             file_handle_grubenv = \
+                 mock_open_grubenv.return_value.__enter__.return_value
+ 
+-            file_handle_grub.read.return_value = 'root=PARTUUID=xx'
++            file_handle_grub.read.return_value = \
++                'root=rootdev nomodeset console=ttyS0 console=tty0\n' \
++                'root=PARTUUID=xx'
+             file_handle_grubenv.read.return_value = 'root=rootdev'
+             file_handle_menu.read.return_value = 'options foo bar'
+ 
+@@ -698,9 +700,17 @@ def open_file(filename, mode=None):
+                     '    fi\n'
+                     'fi\n'
+                 ),
+-                call('root=PARTUUID=xx'),
++                call(
++                    'root=rootdev nomodeset console=ttyS0 console=tty0'
++                    '\n'
++                    'root=PARTUUID=xx'
++                ),
+                 # second write of grub.cfg, setting overlay root
+-                call('root=overlay:UUID=ID')
++                call(
++                    'root=overlay:UUID=ID nomodeset console=ttyS0 console=tty0'
++                    '\n'
++                    'root=overlay:UUID=ID'
++                )
+             ]
+             file_handle_grubenv.write.assert_called_once_with(
+                 'root=overlay:UUID=ID'
