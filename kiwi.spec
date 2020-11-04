@@ -2,12 +2,14 @@
 
 Name:           kiwi
 Version:        9.21.5
-Release:        1
+Release:        2
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
 URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
+Patch6000: fd6c0fac7bff29dfa745f951428f0f8933c65d60.patch
+Patch6001: 2d963ea0ccd350d05df9a0f5c4bac261cba22389.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -189,6 +191,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* 20201104223007660955 patch-tracking 9.21.5-2
+- append patch file of upstream repository from <fd6c0fac7bff29dfa745f951428f0f8933c65d60> to <2d963ea0ccd350d05df9a0f5c4bac261cba22389>
+
 * Tue Jul 28 2020 xinghe <xinghe1@huawei.com> - 9.21.5-1
 - update version to 9.21.5
 
