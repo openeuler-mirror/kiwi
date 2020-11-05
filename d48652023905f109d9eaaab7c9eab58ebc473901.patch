@@ -1,0 +1,48 @@
+diff --git a/build-tests/x86/debian/test-image-live-disk/appliance.kiwi b/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
+index 96a434f496..00df64647c 100644
+--- a/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
++++ b/build-tests/x86/debian/test-image-live-disk/appliance.kiwi
+@@ -83,6 +83,7 @@
+         <package name="isc-dhcp-client"/>
+         <package name="netbase"/>
+         <package name="bsdmainutils"/>
++        <package name="usrmerge"/>
+     </packages>
+     <packages type="image" profiles="Live">
+         <package name="dracut-kiwi-live"/>
+@@ -91,7 +92,5 @@
+         <package name="dracut-kiwi-oem-repart"/>
+         <package name="dracut-kiwi-oem-dump"/>
+     </packages>
+-    <packages type="bootstrap">
+-        <package name="usrmerge"/>
+-    </packages>
++    <packages type="bootstrap"/>
+ </image>
+diff --git a/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi b/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
+index dbc15cd790..15343dad2d 100644
+--- a/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
++++ b/build-tests/x86/ubuntu/test-image-live-disk/appliance.kiwi
+@@ -83,6 +83,12 @@
+         <package name="dbus"/>
+         <package name="btrfs-progs"/>
+         <package name="xz-utils"/>
++        <package name="usrmerge"/>
++        <!--
++            mawk is included so OBS adds it as a build dependency,
++            however this is installed by debootstrap
++        -->
++        <package name="mawk"/>
+     </packages>
+     <packages type="image" profiles="Live">
+         <package name="dracut-kiwi-live"/>
+@@ -91,8 +97,5 @@
+         <package name="dracut-kiwi-oem-repart"/>
+         <package name="dracut-kiwi-oem-dump"/>
+     </packages>
+-    <packages type="bootstrap">
+-        <package name="mawk"/>
+-        <package name="usrmerge"/>
+-    </packages>
++    <packages type="bootstrap"/>
+ </image>
