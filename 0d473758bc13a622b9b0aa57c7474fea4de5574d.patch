@@ -1,0 +1,12 @@
+diff --git a/helper/build_status.sh b/helper/build_status.sh
+index c740700076..177aaf34fa 100755
+--- a/helper/build_status.sh
++++ b/helper/build_status.sh
+@@ -4,6 +4,7 @@ for project in \
+     Virtualization:Appliances:SelfContained:fedora \
+     Virtualization:Appliances:SelfContained:suse \
+     Virtualization:Appliances:SelfContained:ubuntu \
++    Virtualization:Appliances:SelfContained:universal \
+     Virtualization:Appliances:Images:Testing_x86:suse \
+     Virtualization:Appliances:Images:Testing_x86:centos \
+     Virtualization:Appliances:Images:Testing_x86:fedora \
