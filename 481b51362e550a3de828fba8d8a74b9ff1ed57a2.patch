@@ -1,0 +1,296 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index fa163f4724..8a3aa8d49e 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -36,12 +36,12 @@ unit_py37:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: test
+   script:
+-    - export PYTHON=python3.7
+-    - tox -e unit_py3_7 "-n $(nproc)"
++    - export PYTHON=python3.8
++    - tox -e unit_py3_8 "-n $(nproc)"
+   cache:
+     key: "$CI_JOB_NAME"
+     paths:
+-      - .tox/3.7
++      - .tox/3.8
+ 
+ build_doc:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$TUMBLEWEED_BUILD
+diff --git a/.travis.yml b/.travis.yml
+index 3a52d9b009..2171c26c6a 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -13,12 +13,12 @@ jobs:
+   include:
+   - python: 3.6
+     env: TOXENV=check,unit_py3_6
+-  - python: 3.7
++  - python: 3.8
+     dist: xenial
+     sudo: true
+-    env: TOXENV=check,unit_py3_7
++    env: TOXENV=check,unit_py3_8
+   - stage: deploy
+-    python: 3.6
++    python: 3.8
+     env: TOXENV=doc_travis
+     deploy:
+       - provider: pages
+diff --git a/.virtualenv.dev-requirements.txt b/.virtualenv.dev-requirements.txt
+index d11675d2e8..3f5206ad20 100644
+--- a/.virtualenv.dev-requirements.txt
++++ b/.virtualenv.dev-requirements.txt
+@@ -1,12 +1,6 @@
+ #
+ # Requirement files for Python Virtual Environments
+ #
+-# Create a Python virt env with:
+-#  * For Python2: virtualenv-2.7 .env2
+-#  * For Python3: virtualenv-3.4 .env3
+-#
+-# After activation of the env, install it with:
+-# $ pip install -r dev-requirements.txt
+ 
+ -r .virtualenv.requirements.txt
+ 
+diff --git a/.virtualenv.requirements.txt b/.virtualenv.requirements.txt
+index c119cd174e..2b65daaed7 100644
+--- a/.virtualenv.requirements.txt
++++ b/.virtualenv.requirements.txt
+@@ -1,12 +1,6 @@
+ #
+ # Requirement files for Python Virtual Environments
+ #
+-# Create a Python virt env with:
+-#  * For Python2: virtualenv-2.7 .env2
+-#  * For Python3: virtualenv-3.4 .env3
+-#
+-# After activation of the env, install it with:
+-# $ pip install -r requirements.txt
+ 
+ # Shell interface for docopt, the command-line interface description language
+ docopt
+diff --git a/kiwi/bootloader/config/grub2.py b/kiwi/bootloader/config/grub2.py
+index c826c9099f..8655115778 100644
+--- a/kiwi/bootloader/config/grub2.py
++++ b/kiwi/bootloader/config/grub2.py
+@@ -579,7 +579,7 @@ def _setup_zipl2grub_conf(self):
+                 log.debug(zipl_config)
+                 zipl_config_file.write(zipl_config)
+ 
+-    def _setup_default_grub(self):  # noqa: C901
++    def _setup_default_grub(self):
+         """
+         Create or update etc/default/grub by parameters required
+         according to the root filesystem setup
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index b8e4c94f6f..c274679fb5 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -203,7 +203,7 @@ def create(self):
+ 
+         return result
+ 
+-    def create_disk(self):  # noqa: C901
++    def create_disk(self):
+         """
+         Build a bootable raw disk image
+ 
+@@ -725,7 +725,7 @@ def _build_boot_filesystems(self, device_map):
+             )
+             self.system_boot = filesystem
+ 
+-    def _build_and_map_disk_partitions(self, disksize_mbytes):  # noqa: C901
++    def _build_and_map_disk_partitions(self, disksize_mbytes):
+         self.disk.wipe()
+         disksize_used_mbytes = 0
+         if self.firmware.legacy_bios_mode():
+diff --git a/kiwi/oci_tools/buildah.py b/kiwi/oci_tools/buildah.py
+index 0b0fbcaee1..8c3a75dd18 100644
+--- a/kiwi/oci_tools/buildah.py
++++ b/kiwi/oci_tools/buildah.py
+@@ -224,7 +224,7 @@ def post_process(self):
+         self.working_image = output.output.rstrip()
+         self.working_container = None
+ 
+-    @classmethod                                                # noqa:C901
++    @classmethod
+     def _process_oci_config_to_arguments(self, oci_config):
+         """
+         Process the oci configuration dictionary into a list of arguments
+diff --git a/kiwi/oci_tools/umoci.py b/kiwi/oci_tools/umoci.py
+index eb0cd4251b..5e75affb08 100644
+--- a/kiwi/oci_tools/umoci.py
++++ b/kiwi/oci_tools/umoci.py
+@@ -170,7 +170,7 @@ def set_config(self, oci_config):
+             self.container_dir, oci_config['container_tag']
+         )
+ 
+-    @staticmethod                                                # noqa:C901
++    @staticmethod
+     def _process_oci_config_to_arguments(oci_config):
+         """
+         Process the oci configuration dictionary into a list of arguments
+diff --git a/kiwi/partitioner/__init__.py b/kiwi/partitioner/__init__.py
+index 4bd3fd3427..0e536c500c 100644
+--- a/kiwi/partitioner/__init__.py
++++ b/kiwi/partitioner/__init__.py
+@@ -38,7 +38,7 @@ class Partitioner:
+     :param object storage_provider: Instance of class based on DeviceProvider
+     :param int start_sector: sector number
+     """
+-    def __new__(self, table_type, storage_provider, start_sector=None):  # noqa: C901
++    def __new__(self, table_type, storage_provider, start_sector=None):
+         host_architecture = Defaults.get_platform_name()
+         if host_architecture == 'x86_64':
+             if table_type == 'gpt':
+diff --git a/kiwi/storage/setup.py b/kiwi/storage/setup.py
+index b93a3b2591..369d950578 100644
+--- a/kiwi/storage/setup.py
++++ b/kiwi/storage/setup.py
+@@ -63,7 +63,7 @@ def __init__(self, xml_state, root_dir):
+         self.root_dir = root_dir
+         self.xml_state = xml_state
+ 
+-    def get_disksize_mbytes(self):  # noqa C901
++    def get_disksize_mbytes(self):
+         """
+         Precalculate disk size requirements in mbytes
+ 
+diff --git a/kiwi/storage/subformat/__init__.py b/kiwi/storage/subformat/__init__.py
+index 98e5dea357..170f371ee5 100644
+--- a/kiwi/storage/subformat/__init__.py
++++ b/kiwi/storage/subformat/__init__.py
+@@ -41,7 +41,7 @@ def __init__(self) -> None:
+     @abstractmethod
+     def new(
+         name: str, xml_state: object, root_dir: str, target_dir: str
+-    ):  # noqa: C901, E252
++    ):  # noqa: E252
+         name_map = {
+             'qcow2': 'Qcow2',
+             'vdi': 'Vdi',
+diff --git a/kiwi/storage/subformat/vmdk.py b/kiwi/storage/subformat/vmdk.py
+index c64d4a8a1a..496a821121 100644
+--- a/kiwi/storage/subformat/vmdk.py
++++ b/kiwi/storage/subformat/vmdk.py
+@@ -91,7 +91,7 @@ def store_to_result(self, result):
+             shasum=False
+         )
+ 
+-    def _create_vmware_settings_file(self):                 # noqa: C901
++    def _create_vmware_settings_file(self):
+         """
+         In order to run a vmdk image in VMware products a settings file is
+         needed or the possibility to convert machine settings into an ovf
+diff --git a/kiwi/tasks/system_build.py b/kiwi/tasks/system_build.py
+index e1f90af902..ddcecd70c3 100644
+--- a/kiwi/tasks/system_build.py
++++ b/kiwi/tasks/system_build.py
+@@ -113,7 +113,7 @@ class SystemBuildTask(CliTask):
+     * :attr:`manual`
+         Instance of Help
+     """
+-    def process(self):                                      # noqa: C901
++    def process(self):
+         """
+         Build a system image from the specified description. The
+         build command combines the prepare and create commands
+diff --git a/kiwi/tasks/system_prepare.py b/kiwi/tasks/system_prepare.py
+index 3fd3360198..bd0196b531 100644
+--- a/kiwi/tasks/system_prepare.py
++++ b/kiwi/tasks/system_prepare.py
+@@ -109,7 +109,7 @@ class SystemPrepareTask(CliTask):
+     * :attr:`manual`
+         Instance of Help
+     """
+-    def process(self):                                      # noqa: C901
++    def process(self):
+         """
+         Prepare and install a new system for chroot access
+         """
+diff --git a/kiwi/xml_description.py b/kiwi/xml_description.py
+index 84f26c8ab4..55b3e3601f 100644
+--- a/kiwi/xml_description.py
++++ b/kiwi/xml_description.py
+@@ -72,7 +72,7 @@ def __init__(self, description=None, derived_from=None, xml_content=None):
+         self.description_origin = description
+         self.extension_data = {}
+ 
+-    def load(self): # noqa C901
++    def load(self):
+         """
+         Read XML description, validate it against the schema
+         and the schematron rules and pass it to the
+diff --git a/kiwi/xml_state.py b/kiwi/xml_state.py
+index a6e6e5bb48..4c3946bef7 100644
+--- a/kiwi/xml_state.py
++++ b/kiwi/xml_state.py
+@@ -1198,7 +1198,7 @@ def add_container_config_label(self, label_name, value):
+ 
+         container_config_section.set_labels(labels)
+ 
+-    def get_volumes(self):  # noqa C901
++    def get_volumes(self):
+         """
+         List of configured systemdisk volumes.
+ 
+diff --git a/setup.cfg b/setup.cfg
+index 6661f872dd..88f68277e6 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -17,7 +17,7 @@ exclude=xml_parse.py
+ # we ignore warnings about quoting of escape sequences (W605)
+ ignore = E501, W605
+ # we allow a custom complexity level
+-max-complexity = 12
++max-complexity = 18
+ 
+ [doc8]
+ max-line-length = 90
+diff --git a/tox.ini b/tox.ini
+index c1bd623ee3..93e2fe20c8 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -16,7 +16,7 @@ skip_missing_interpreters = True
+ skipsdist = True
+ envlist =
+     check,
+-    unit_py3_7,
++    unit_py3_8,
+     unit_py3_6,
+     packagedoc,
+     devel
+@@ -24,16 +24,16 @@ envlist =
+ 
+ [testenv]
+ description =
+-    {unit_py3_6,unit_py3_7}: Unit Test run with basepython set to {basepython}
++    {unit_py3_6,unit_py3_8}: Unit Test run with basepython set to {basepython}
+     devel: Test KIWI
+ whitelist_externals = *
+ basepython =
+     {check,devel,packagedoc,doc,doc_travis,doc_suse}: python3
+-    unit_py3_7: python3.7
++    unit_py3_8: python3.8
+     unit_py3_6: python3.6
+ envdir =
+     {check,devel,packagedoc,doc,doc_travis,doc_suse}: {toxworkdir}/3
+-    unit_py3_7: {toxworkdir}/3.7
++    unit_py3_8: {toxworkdir}/3.8
+     unit_py3_6: {toxworkdir}/3.6
+ passenv =
+     *
+@@ -61,8 +61,8 @@ commands =
+         --cov-fail-under=100 --cov-config .coveragerc {posargs}
+ 
+ 
+-# Unit Test run with basepython set to 3.7
+-[testenv:unit_py3_7]
++# Unit Test run with basepython set to 3.8
++[testenv:unit_py3_8]
+ skip_install = True
+ usedevelop = True
+ setenv =
