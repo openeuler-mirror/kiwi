@@ -1,0 +1,14 @@
+diff --git a/package/python-kiwi-spec-template b/package/python-kiwi-spec-template
+index c7d853c177..669a993a04 100644
+--- a/package/python-kiwi-spec-template
++++ b/package/python-kiwi-spec-template
+@@ -60,7 +60,9 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+ BuildRequires:  gcc
+ BuildRequires:  python%{python3_pkgversion}-%{develsuffix}
+ BuildRequires:  python%{python3_pkgversion}-setuptools
++%if 0%{?fedora} || 0%{?suse_version}
+ BuildRequires:  fdupes
++%endif
+ %if 0%{?suse_version}
+ BuildRequires:  shadow
+ %endif
