@@ -1,0 +1,56 @@
+diff --git a/kiwi/bootloader/config/grub2.py b/kiwi/bootloader/config/grub2.py
+index 8655115778..1e776d2596 100644
+--- a/kiwi/bootloader/config/grub2.py
++++ b/kiwi/bootloader/config/grub2.py
+@@ -242,6 +242,20 @@ def setup_disk_image_config(
+                 config_file.replace(self.root_mount.mountpoint, '')
+             ]
+         )
++        if boot_options.get('root_device') != boot_options.get('boot_device'):
++            # Create a boot -> . link on the boot partition.
++            # The link is useful if the grub mkconfig command
++            # references all boot files from /boot/... even if
++            # an extra boot partition should cause it to read the
++            # data from the toplevel
++            bash_command = [
++                'cd', os.sep.join([self.root_mount.mountpoint, 'boot']), '&&',
++                'rm', '-f', 'boot', '&&',
++                'ln', '-s', '.', 'boot'
++            ]
++            Command.run(
++                ['bash', '-c', ' '.join(bash_command)]
++            )
+ 
+         # Patch the written grub config file to actually work:
+         # Unfortunately the grub tooling has several bugs and issues
+diff --git a/test/unit/bootloader/config/grub2_test.py b/test/unit/bootloader/config/grub2_test.py
+index bf5d398141..817d7b89c8 100644
+--- a/test/unit/bootloader/config/grub2_test.py
++++ b/test/unit/bootloader/config/grub2_test.py
+@@ -678,12 +678,20 @@ def open_file(filename, mode=None):
+             mock_mount_system.assert_called_once_with(
+                 'rootdev', 'bootdev', None, None
+             )
+-            mock_Command_run.assert_called_once_with(
+-                [
+-                    'chroot', self.bootloader.root_mount.mountpoint,
+-                    'grub2-mkconfig', '-o', '/boot/grub2/grub.cfg'
+-                ]
+-            )
++            assert mock_Command_run.call_args_list == [
++                call(
++                    [
++                        'chroot', self.bootloader.root_mount.mountpoint,
++                        'grub2-mkconfig', '-o', '/boot/grub2/grub.cfg'
++                    ]
++                ),
++                call(
++                    [
++                        'bash', '-c',
++                        'cd root_mount_point/boot && rm -f boot && ln -s . boot'
++                    ]
++                )
++            ]
+             mock_copy_grub_config_to_efi_path.assert_called_once_with(
+                 'efi_mount_point', 'earlyboot.cfg'
+             )
