@@ -1,0 +1,147 @@
+diff --git a/kiwi/package_manager/microdnf.py b/kiwi/package_manager/microdnf.py
+index 9c272de09d..8cea3722db 100644
+--- a/kiwi/package_manager/microdnf.py
++++ b/kiwi/package_manager/microdnf.py
+@@ -99,12 +99,9 @@ def process_install_requests_bootstrap(self, root_bind=None):
+ 
+         :rtype: namedtuple
+         """
+-        Command.run(
+-            ['microdnf'] + self.dnf_args + ['makecache']
+-        )
+         bash_command = [
+             'microdnf'
+-        ] + self.dnf_args + [
++        ] + ['--refresh'] + self.dnf_args + [
+             '--installroot', self.root_dir
+         ] + self.custom_args + ['install'] + self.package_requests
+         self.cleanup_requests()
+diff --git a/kiwi/repository/dnf.py b/kiwi/repository/dnf.py
+index 405b9d83db..13712567fe 100644
+--- a/kiwi/repository/dnf.py
++++ b/kiwi/repository/dnf.py
+@@ -88,7 +88,7 @@ def post_init(self, custom_args=None):
+         )
+ 
+         self.dnf_args = [
+-            '-c', self.runtime_dnf_config_file.name, '-y'
++            '--config', self.runtime_dnf_config_file.name, '-y'
+         ] + self.custom_args
+ 
+         self.command_env = self._create_dnf_runtime_environment()
+diff --git a/test/unit/package_manager/dnf_test.py b/test/unit/package_manager/dnf_test.py
+index 6ac2acecfa..5be68a828a 100644
+--- a/test/unit/package_manager/dnf_test.py
++++ b/test/unit/package_manager/dnf_test.py
+@@ -14,7 +14,7 @@ def setup(self):
+ 
+         repository.runtime_config = mock.Mock(
+             return_value={
+-                'dnf_args': ['-c', '/root-dir/dnf.conf', '-y'],
++                'dnf_args': ['--config', '/root-dir/dnf.conf', '-y'],
+                 'command_env': ['env']
+             }
+         )
+@@ -43,14 +43,14 @@ def test_process_install_requests_bootstrap(self, mock_run, mock_call):
+         self.manager.request_collection('collection')
+         self.manager.process_install_requests_bootstrap()
+         mock_run.assert_called_once_with(
+-            ['dnf', '-c', '/root-dir/dnf.conf', '-y', 'makecache']
++            ['dnf', '--config', '/root-dir/dnf.conf', '-y', 'makecache']
+         )
+         mock_call.assert_called_once_with(
+             [
+                 'bash', '-c',
+-                'dnf -c /root-dir/dnf.conf -y '
++                'dnf --config /root-dir/dnf.conf -y '
+                 '--installroot /root-dir install vim && '
+-                'dnf -c /root-dir/dnf.conf -y '
++                'dnf --config /root-dir/dnf.conf -y '
+                 '--installroot /root-dir group install '
+                 '"collection"'
+             ], ['env']
+@@ -65,9 +65,9 @@ def test_process_install_requests(self, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'bash', '-c',
+-                'chroot /root-dir dnf -c /dnf.conf -y '
++                'chroot /root-dir dnf --config /dnf.conf -y '
+                 '--exclude=skipme install vim && '
+-                'chroot /root-dir dnf -c /dnf.conf -y '
++                'chroot /root-dir dnf --config /dnf.conf -y '
+                 '--exclude=skipme group install '
+                 '"collection"'
+             ], ['env']
+@@ -96,7 +96,7 @@ def test_process_delete_requests_no_force(self, mock_run, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'chroot', '/root-dir', 'dnf',
+-                '-c', '/dnf.conf', '-y', 'autoremove', 'vim'
++                '--config', '/dnf.conf', '-y', 'autoremove', 'vim'
+             ],
+             ['env']
+         )
+@@ -120,7 +120,7 @@ def test_update(self, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'chroot', '/root-dir', 'dnf',
+-                '-c', '/dnf.conf', '-y', 'upgrade'
++                '--config', '/dnf.conf', '-y', 'upgrade'
+             ], ['env']
+         )
+ 
+diff --git a/test/unit/package_manager/microdnf_test.py b/test/unit/package_manager/microdnf_test.py
+index e62a13bc68..5ed8dc7b7c 100644
+--- a/test/unit/package_manager/microdnf_test.py
++++ b/test/unit/package_manager/microdnf_test.py
+@@ -14,7 +14,7 @@ def setup(self):
+ 
+         repository.runtime_config = mock.Mock(
+             return_value={
+-                'dnf_args': ['-c', '/root-dir/dnf.conf', '-y'],
++                'dnf_args': ['--config', '/root-dir/dnf.conf', '-y'],
+                 'command_env': ['env']
+             }
+         )
+@@ -42,13 +42,10 @@ def test_process_install_requests_bootstrap(self, mock_run, mock_call):
+         self.manager.request_package('vim')
+         self.manager.request_collection('collection')
+         self.manager.process_install_requests_bootstrap()
+-        mock_run.assert_called_once_with(
+-            ['microdnf', '-c', '/root-dir/dnf.conf', '-y', 'makecache']
+-        )
+         mock_call.assert_called_once_with(
+             [
+                 'bash', '-c',
+-                'microdnf -c /root-dir/dnf.conf -y '
++                'microdnf --refresh --config /root-dir/dnf.conf -y '
+                 '--installroot /root-dir install vim'
+             ], ['env']
+         )
+@@ -62,7 +59,7 @@ def test_process_install_requests(self, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'bash', '-c',
+-                'chroot /root-dir microdnf -c /dnf.conf -y '
++                'chroot /root-dir microdnf --config /dnf.conf -y '
+                 '--exclude=skipme install vim'
+             ], ['env']
+         )
+@@ -90,7 +87,7 @@ def test_process_delete_requests_no_force(self, mock_run, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'chroot', '/root-dir', 'microdnf',
+-                '-c', '/dnf.conf', '-y', 'remove', 'vim'
++                '--config', '/dnf.conf', '-y', 'remove', 'vim'
+             ],
+             ['env']
+         )
+@@ -114,7 +111,7 @@ def test_update(self, mock_call):
+         mock_call.assert_called_once_with(
+             [
+                 'chroot', '/root-dir', 'microdnf',
+-                '-c', '/dnf.conf', '-y', 'upgrade'
++                '--config', '/dnf.conf', '-y', 'upgrade'
+             ], ['env']
+         )
+ 
