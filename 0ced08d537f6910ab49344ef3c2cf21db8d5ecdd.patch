@@ -1,0 +1,29 @@
+diff --git a/kiwi/storage/setup.py b/kiwi/storage/setup.py
+index 369d950578..8d38f764bb 100644
+--- a/kiwi/storage/setup.py
++++ b/kiwi/storage/setup.py
+@@ -193,10 +193,9 @@ def need_boot_partition(self):
+             return True
+         if self.volume_manager == 'btrfs':
+             return False
+-        if self.filesystem == 'xfs':
+-            return True
+         if self.root_filesystem_is_overlay:
+             return True
++        return False
+ 
+     def get_boot_label(self):
+         """
+diff --git a/test/unit/storage/setup_test.py b/test/unit/storage/setup_test.py
+index f3ab1acbb9..906f1d7bc7 100644
+--- a/test/unit/storage/setup_test.py
++++ b/test/unit/storage/setup_test.py
+@@ -111,7 +111,7 @@ def test_need_boot_partition_btrfs(self):
+     def test_need_boot_partition_xfs(self):
+         self._init_bootpart_check()
+         self.setup.filesystem = 'xfs'
+-        assert self.setup.need_boot_partition() is True
++        assert self.setup.need_boot_partition() is False
+ 
+     def test_boot_partition_size(self):
+         self.setup.bootpart_requested = True
