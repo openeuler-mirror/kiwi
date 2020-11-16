@@ -1,0 +1,384 @@
+diff --git a/doc/source/building_images/build_kis.rst b/doc/source/building_images/build_kis.rst
+index 44497080dc..aeee5f0d84 100644
+--- a/doc/source/building_images/build_kis.rst
++++ b/doc/source/building_images/build_kis.rst
+@@ -64,7 +64,7 @@ build the image:
+ 
+ .. code:: bash
+ 
+-   $ sudo kiwi-ng --type kis system build \
++   $ sudo kiwi-ng --profile KIS system build \
+        --description kiwi-descriptions/suse/x86_64/{exc_description} \
+        --target-dir /tmp/myimage
+ 
+diff --git a/doc/source/working_with_images.rst b/doc/source/working_with_images.rst
+index 8cb309c163..fbe033b917 100644
+--- a/doc/source/working_with_images.rst
++++ b/doc/source/working_with_images.rst
+@@ -27,3 +27,4 @@ Working with Images
+    working_with_images/build_with_profiles
+    working_with_images/build_in_buildservice
+    working_with_images/legacy_netboot_root_filesystem
++   working_with_images/network_overlay_boot
+diff --git a/doc/source/working_with_images/legacy_netboot_root_filesystem.rst b/doc/source/working_with_images/legacy_netboot_root_filesystem.rst
+index 3015c5094b..79f665c00a 100644
+--- a/doc/source/working_with_images/legacy_netboot_root_filesystem.rst
++++ b/doc/source/working_with_images/legacy_netboot_root_filesystem.rst
+@@ -93,7 +93,7 @@ system. As diskless client, a QEMU virtual machine is used.
+ 
+    .. code:: bash
+ 
+-       $ cp {exc_image_base_name}.x86_64-{exc_image_version}/srv/tftpboot/image
++       $ cp {exc_image_base_name}.x86_64-{exc_image_version} /srv/tftpboot/image
+        $ cp {exc_image_base_name}.x86_64-{exc_image_version}.md5 /srv/tftpboot/image
+ 
+ 6. Adjust the PXE configuration file.
+diff --git a/doc/source/working_with_images/network_overlay_boot.rst b/doc/source/working_with_images/network_overlay_boot.rst
+new file mode 100644
+index 0000000000..71e8c2c71e
+--- /dev/null
++++ b/doc/source/working_with_images/network_overlay_boot.rst
+@@ -0,0 +1,154 @@
++.. _network_overlay_boot:
++
++Booting a Root Filesystem from Network
++======================================
++
++.. sidebar:: Abstract
++
++   This page provides further information for handling
++   KIS images built with {kiwi} and references the following
++   article:
++
++   * :ref:`kis`
++
++In {kiwi}, the `kiwi-overlay` dracut module can be used to boot
++from a remote exported root filesystem. The exported device
++is visible as block device on the network client. {kiwi}
++supports the two export backends `NBD` (Network Block Device)
++and `AoE` (ATA over Ethernet) for this purpose. A system that is
++booted in this mode will read the contents of the root filesystem
++from a remote location and targets any write action into RAM by
++default. The kernel cmdline option `rd.root.overlay.write` can
++be used to specify an alternative device to use for writing.
++The two layers (read and write) are combined using the `overlayfs`
++filesystem.
++
++For remote boot of a network client, the PXE boot protocol
++is used. This functionality requires a network boot server
++setup on the system. Details how to setup such a server
++can be found in :ref:`network-boot-server`.
++
++Before the KIS image can be build, the following configuration step
++is required:
++
++* Create dracut configuration to include the `kiwi-overlay` module
++
++   .. code:: bash
++
++       $ cd kiwi-descriptions/suse/x86_64/{exc_description}
++       $ mkdir -p root/etc/dracut.conf.d
++       $ cd root/etc/dracut.conf.d
++       $ echo 'add_dracutmodules+=" kiwi-overlay "' > overlay.conf
++
++Now the KIS image can be build as shown in :ref:`kis`. After the
++build, the following configuration steps are required to boot
++from the network:
++
++1. Copy initrd/kernel from the KIS build to the PXE server
++
++   The PXE boot process loads the configured kernel and initrd from
++   the PXE server. For this reason, the following files must be
++   copied to the PXE server as follows:
++
++   .. code:: bash
++
++       $ cp *.initrd.xz /srv/tftpboot/boot/initrd
++       $ cp *.kernel /srv/tftpboot/boot/linux
++
++2. Export Root FileSystem to the Network
++
++   Access to the root filesystem is implemented using either the
++   AoE or the NBD protocol. This requires the export of the
++   root filesystem image as remote block device:
++
++   Export via AoE:
++     Install the `vblade` package on the system which is expected
++     to export the root filesystem
++
++     .. note::
++
++         Not all versions of AoE are compatible with any kernel. This
++         means the kernel on the system exporting the root filesystem image
++         must provide a compatible aoe kernel module compared to the
++         kernel used inside of the root filesystem image.
++
++     Once done, export the filesystem from the KIS build above as follows:
++
++     .. code:: bash
++
++         $ vbladed 0 1 IFACE {exc_image_base_name}.x86_64-{exc_image_version}
++
++     The above command exports the given filesystem image file as a block
++     storage device to the network of the given IFACE. On any machine except
++     the one exporting the file, it will appear as :file:`/dev/etherd/e0.1`
++     once the :command:`aoe` kernel module was loaded. The two numbers,
++     0 and 1 in the above example, classifies a major and minor number which
++     is used in the device node name on the reading side, in this
++     case :file:`e0.1`.
++
++     .. note::
++
++         Only machines in the same network of the given INTERFACE
++         can see the exported block device.
++
++   Export via NBD:
++     Install the `nbd` package on the system which is expected
++     to export the root filesystem
++
++     Once done, export the filesystem from the KIS build above as follows:
++
++     .. code:: bash
++
++         $ losetup /dev/loop0 {exc_image_base_name}.x86_64-{exc_image_version}
++
++         $ vi /etc/nbd-server/config
++
++           [generic]
++               user = root
++               group = root
++           [export]
++               exportname = /dev/loop0
++
++         $ nbd-server
++
++3. Setup boot entry in the PXE configuration
++
++   .. note::
++
++       The following step assumes that the pxelinux.0 loader
++       has been configured on the boot server to boot up network
++       clients
++
++   Edit the file :file:`/srv/tftpboot/pxelinux.cfg/default` and create
++   a boot entry of the form:
++
++   Using NBD:
++     .. code:: bash
++
++         LABEL Overlay-Boot
++             kernel boot/linux
++             append initrd=boot/initrd root=overlay:nbd=server-ip:export
++
++     The boot parameter `root=overlay:nbd=server-ip:export` specifies
++     the NBD server IP address and the name of the export as used in
++     :file:`/etc/nbd-server/config`
++
++   Using AoE:
++     .. code:: bash
++
++         LABEL Overlay-Boot
++             kernel boot/linux
++             append initrd=boot/initrd root=overlay:aoe=AOEINTERFACE
++
++     The boot parameter `root=overlay:aoe=AOEINTERFACE` specifies the
++     interface name as it was exported by the :command:`vbladed` command
++
++4. Boot from the Network
++
++   Within the network which has access to the PXE server and the
++   exported root filesystem image, any network client can now boot the
++   system. A test based on QEMU can be done as follows:
++
++   .. code:: bash
++
++      $ qemu -boot n
+diff --git a/dracut/modules.d/90kiwi-overlay/kiwi-generator.sh b/dracut/modules.d/90kiwi-overlay/kiwi-generator.sh
+index a71f64aa53..79a17b44d9 100755
+--- a/dracut/modules.d/90kiwi-overlay/kiwi-generator.sh
++++ b/dracut/modules.d/90kiwi-overlay/kiwi-generator.sh
+@@ -9,18 +9,9 @@ if [ "${root%%:*}" = "overlay" ] ; then
+     overlayroot=${root}
+ fi
+ 
++# Generate sysroot unit only if overlay is requested
+ [ "${overlayroot%%:*}" = "overlay" ] || exit 0
+ 
+-case "${overlayroot}" in
+-    overlay:UUID=*|UUID=*) \
+-        root="${root#overlay:}"
+-        root="${root//\//\\x2f}"
+-        root="block:/dev/disk/by-uuid/${root#UUID=}"
+-        rootok=1 ;;
+-esac
+-
+-[ "${rootok}" != "1" ] && exit 0
+-
+ GENERATOR_DIR="$2"
+ [ -z "$GENERATOR_DIR" ] && exit 1
+ [ -d "$GENERATOR_DIR" ] || mkdir "$GENERATOR_DIR"
+diff --git a/dracut/modules.d/90kiwi-overlay/kiwi-overlay-root.sh b/dracut/modules.d/90kiwi-overlay/kiwi-overlay-root.sh
+index 4c4fed313b..36820cf76d 100755
+--- a/dracut/modules.d/90kiwi-overlay/kiwi-overlay-root.sh
++++ b/dracut/modules.d/90kiwi-overlay/kiwi-overlay-root.sh
+@@ -1,6 +1,5 @@
+ #!/bin/bash
+-# root=overlay:UUID=uuid was converted to
+-# root=block:/dev/disk/by-uuid/uuid in cmdline hook
++# root=overlay:* was converted into a root=block:/dev/... node
+ type getOverlayBaseDirectory >/dev/null 2>&1 || . /lib/kiwi-filesystem-lib.sh
+ 
+ #======================================
+@@ -21,18 +20,34 @@ function loadKernelModules {
+ }
+ 
+ function initGlobalDevices {
++    local nbd_host
++    local nbd_export
+     if [ -z "$1" ]; then
+         die "No root device for operation given"
+     fi
+-    write_partition="$1"
+-    root_disk=$(
+-        lsblk -p -n -r -s -o NAME,TYPE "${write_partition}" |\
+-        grep disk | cut -f1 -d ' '
+-    )
+-    read_only_partition=$(
+-        lsblk -p -r --fs -o NAME,FSTYPE "${root_disk}" |\
+-        grep squashfs | cut -f1 -d ' '
+-    )
++    write_partition=$(getarg rd.root.overlay.write=)
++    if [[ "${root_cmdline}" =~ "overlay:nbd=" ]];then
++        nbd_host=$(echo "${root_cmdline}" | cut -f2 -d= | cut -f1 -d:)
++        nbd_export=$(echo "${root_cmdline}" | cut -f3 -d:)
++        read_only_partition="/dev/nbd0"
++        if ! nbd-client \
++            "${nbd_host}" "${read_only_partition}" -name "${nbd_export}"
++        then
++            die "Failed to setup nbd client for ${root_cmdline}"
++        fi
++    elif [[ "${root_cmdline}" =~ "overlay:aoe=" ]];then
++        read_only_partition="/dev/etherd/$(echo "${root_cmdline}"|cut -f2 -d=)"
++    else
++        write_partition="$1"
++        root_disk=$(
++            lsblk -p -n -r -s -o NAME,TYPE "${write_partition}" |\
++            grep disk | cut -f1 -d ' '
++        )
++        read_only_partition=$(
++            lsblk -p -r --fs -o NAME,FSTYPE "${root_disk}" |\
++            grep squashfs | cut -f1 -d ' '
++        )
++    fi
+ }
+ 
+ function mountReadOnlyRootImage {
+@@ -71,6 +86,14 @@ function preparePersistentOverlay {
+ PATH=/usr/sbin:/usr/bin:/sbin:/bin
+ 
+ declare root=${root}
++declare root_cmdline
++
++root_cmdline=$(getarg root=)
++
++# only run if overlay is requested
++if [[ ! "${root_cmdline}" =~ "overlay:" ]];then
++    return 0
++fi
+ 
+ # init debug log file if wanted
+ setupDebugMode
+@@ -85,7 +108,7 @@ loadKernelModules
+ mountReadOnlyRootImage
+ 
+ # prepare overlay for generated systemd OverlayOS_rootfs service
+-if getargbool 0 rd.root.overlay.readonly; then
++if [ -z "${write_partition}" ] || getargbool 0 rd.root.overlay.readonly; then
+     prepareTemporaryOverlay
+ else
+     preparePersistentOverlay
+diff --git a/dracut/modules.d/90kiwi-overlay/module-setup.sh b/dracut/modules.d/90kiwi-overlay/module-setup.sh
+index 3914aa5b15..50fbe84ea4 100755
+--- a/dracut/modules.d/90kiwi-overlay/module-setup.sh
++++ b/dracut/modules.d/90kiwi-overlay/module-setup.sh
+@@ -7,13 +7,13 @@ check() {
+ 
+ # called by dracut
+ depends() {
+-    echo rootfs-block dm kiwi-lib
++    echo network rootfs-block dm kiwi-lib
+     return 0
+ }
+ 
+ # called by dracut
+ installkernel() {
+-    instmods squashfs loop overlay
++    instmods squashfs loop overlay nbd aoe
+ }
+ 
+ # called by dracut
+@@ -21,7 +21,7 @@ install() {
+     declare moddir=${moddir}
+     declare systemdutildir=${systemdutildir}
+     inst_multiple \
+-        lsblk losetup grep cut mount
++        lsblk losetup grep cut mount nbd-client
+     inst_hook cmdline 30 "${moddir}/parse-kiwi-overlay.sh"
+     # kiwi-repart priority pre-mount hook is 20
+     # overlay pre-mount needs to happend after any repartition
+diff --git a/dracut/modules.d/90kiwi-overlay/parse-kiwi-overlay.sh b/dracut/modules.d/90kiwi-overlay/parse-kiwi-overlay.sh
+index 755b2c7df6..0cb42230d9 100755
+--- a/dracut/modules.d/90kiwi-overlay/parse-kiwi-overlay.sh
++++ b/dracut/modules.d/90kiwi-overlay/parse-kiwi-overlay.sh
+@@ -1,6 +1,8 @@
+ #!/bin/bash
+ # overlay images are specified with
+ # root=overlay:UUID=uuid
++# root=overlay:nbd=ip:exportname
++# root=overlay:aoe=interface
+ 
+ [ -z "${root}" ] && root=$(getarg root=)
+ 
+@@ -12,14 +14,35 @@ fi
+ 
+ modprobe -q loop
+ 
++need_network=0
++
+ case "${overlayroot}" in
+     overlay:UUID=*|UUID=*) \
+         root="${root#overlay:}"
+         root="${root//\//\\x2f}"
+         root="block:/dev/disk/by-uuid/${root#UUID=}"
+-        rootok=1 ;;
++    ;;
++    overlay:nbd=*) \
++        root="block:/dev/nbd0"
++        need_network=1
++    ;;
++    overlay:aoe=*) \
++        root="${root#overlay:aoe=}"
++        root="block:/dev/etherd/${root}"
++        need_network=1
++    ;;
+ esac
+ 
++if [ "${need_network}" = "1" ];then
++    echo "rd.neednet=1" > /etc/cmdline.d/kiwi-generated.conf
++    if ! getarg "ip="; then
++        echo "ip=dhcp" >> /etc/cmdline.d/kiwi-generated.conf
++    fi
++fi
++
++# Done, all good!
++rootok=1
++
+ [ "${rootok}" = "1" ] || return 1
+ 
+ info "root was ${overlayroot}, is now ${root}"
+@@ -28,5 +51,3 @@ info "root was ${overlayroot}, is now ${root}"
+ [ -z "${root}" ] && root="overlay"
+ 
+ wait_for_dev -n "${root#block:}"
+-
+-return 0
