@@ -1,0 +1,46 @@
+diff --git a/kiwi/package_manager/microdnf.py b/kiwi/package_manager/microdnf.py
+index 8cea3722db..dc32009022 100644
+--- a/kiwi/package_manager/microdnf.py
++++ b/kiwi/package_manager/microdnf.py
+@@ -203,15 +203,15 @@ def process_only_required(self):
+         """
+         Setup package processing only for required packages
+         """
+-        if '--setopt=install_weak_deps=False' not in self.custom_args:
+-            self.custom_args.append('--setopt=install_weak_deps=False')
++        if '--setopt=install_weak_deps=0' not in self.custom_args:
++            self.custom_args.append('--setopt=install_weak_deps=0')
+ 
+     def process_plus_recommended(self):
+         """
+         Setup package processing to also include recommended dependencies.
+         """
+-        if '--setopt=install_weak_deps=False' in self.custom_args:
+-            self.custom_args.remove('--setopt=install_weak_deps=False')
++        if '--setopt=install_weak_deps=0' in self.custom_args:
++            self.custom_args.remove('--setopt=install_weak_deps=0')
+ 
+     def match_package_installed(self, package_name, dnf_output):
+         """
+diff --git a/test/unit/package_manager/microdnf_test.py b/test/unit/package_manager/microdnf_test.py
+index 5ed8dc7b7c..b9625b2a3c 100644
+--- a/test/unit/package_manager/microdnf_test.py
++++ b/test/unit/package_manager/microdnf_test.py
+@@ -117,14 +117,14 @@ def test_update(self, mock_call):
+ 
+     def test_process_only_required(self):
+         self.manager.process_only_required()
+-        assert self.manager.custom_args == ['--setopt=install_weak_deps=False']
++        assert self.manager.custom_args == ['--setopt=install_weak_deps=0']
+ 
+     def test_process_plus_recommended(self):
+         self.manager.process_only_required()
+-        assert self.manager.custom_args == ['--setopt=install_weak_deps=False']
++        assert self.manager.custom_args == ['--setopt=install_weak_deps=0']
+         self.manager.process_plus_recommended()
+         assert \
+-            '--setopt=install_weak_deps=False' not in self.manager.custom_args
++            '--setopt=install_weak_deps=0' not in self.manager.custom_args
+ 
+     def test_match_package_installed(self):
+         assert self.manager.match_package_installed('foo', 'Installing  : foo')
