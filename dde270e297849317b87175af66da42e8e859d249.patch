@@ -1,0 +1,145 @@
+diff --git a/kiwi/exceptions.py b/kiwi/exceptions.py
+index 7001124ac7..03bb1e45f3 100644
+--- a/kiwi/exceptions.py
++++ b/kiwi/exceptions.py
+@@ -161,7 +161,7 @@ class KiwiCommandError(KiwiError):
+     """
+ 
+ 
+-class KiwiCommandNotFound(KiwiCommandError):
++class KiwiCommandNotFound(KiwiError):
+     """
+     Exception raised if any executable command cannot be found in
+     the evironment PATH variable.
+diff --git a/kiwi/xml_description.py b/kiwi/xml_description.py
+index 55b3e3601f..38ac682d17 100644
+--- a/kiwi/xml_description.py
++++ b/kiwi/xml_description.py
+@@ -31,6 +31,7 @@
+ from kiwi.command import Command
+ 
+ from kiwi.exceptions import (
++    KiwiCommandError,
+     KiwiSchemaImportError,
+     KiwiValidationError,
+     KiwiDescriptionInvalid,
+@@ -97,12 +98,13 @@ def load(self):
+         except Exception as issue:
+             raise KiwiValidationError(issue)
+         if not validation_rng:
+-            self._get_relaxng_validation_details(
++            XMLDescription._get_relaxng_validation_details(
+                 Defaults.get_schema_file(),
+-                self.description
++                self.description,
++                relaxng.error_log
+             )
+         if not validation_schematron:
+-            self._get_schematron_validation_details(
++            XMLDescription._get_schematron_validation_details(
+                 schematron.validation_report
+             )
+         if not validation_rng or not validation_schematron:
+@@ -166,8 +168,10 @@ def load(self):
+                         extension_file = NamedTemporaryFile()
+                         with open(extension_file.name, 'w') as xml_data:
+                             xml_data.write(xml_data_domtree.toprettyxml())
+-                        self._get_relaxng_validation_details(
+-                            extension_schema, extension_file.name
++                        XMLDescription._get_relaxng_validation_details(
++                            extension_schema,
++                            extension_file.name,
++                            extension_relaxng.error_log
+                         )
+                         raise KiwiExtensionError(
+                             'Schema validation for extension XML data failed'
+@@ -188,30 +192,34 @@ def get_extension_xml_data(self, namespace_name):
+         if namespace_name in self.extension_data:
+             return self.extension_data[namespace_name]
+ 
+-    def _get_relaxng_validation_details(self, schema_file, description_file):
++    @staticmethod
++    def _get_relaxng_validation_details(
++        schema_file, description_file, error_log
++    ):
+         """
+         Run jing program to validate description against the schema
+ 
+         Jing provides detailed error information in case of a schema
+-        validation failure
++        validation failure. If jing is not present the standard
++        error_log as provided from the raw XML libraries is used
+         """
+         try:
+-            cmd = Command.run(
+-                ['jing', schema_file, description_file],
+-                raise_on_error=False
++            Command.run(
++                ['jing', schema_file, description_file]
+             )
++        except KiwiCommandError as issue:
++            log.info('RelaxNG validation failed. See jing report:')
++            log.info('--> {0}'.format(issue))
+         except KiwiCommandNotFound as issue:
+-            log.info(
+-                'For detailed schema validation report, please install: jing'
++            log.warning(issue)
++            log.warning(
++                'For detailed schema validation report, install: jing'
+             )
+-            log.info(
+-                '{0}: {1}: {2}'.format('jing', type(issue).__name__, issue)
+-            )
+-            return
+-        log.info('RelaxNG validation failed. See jing report:')
+-        log.info('--> %s', cmd.output)
++            log.info('Showing only raw library error log:')
++            log.info('--> {0}'.format(error_log))
+ 
+-    def _get_schematron_validation_details(self, validation_report):
++    @staticmethod
++    def _get_schematron_validation_details(validation_report):
+         """
+         Extract error message form the schematron validation report
+ 
+diff --git a/test/unit/command_test.py b/test/unit/command_test.py
+index 922d52e333..125db5183a 100644
+--- a/test/unit/command_test.py
++++ b/test/unit/command_test.py
+@@ -35,7 +35,7 @@ def test_run_failure(self, mock_popen, mock_which):
+             Command.run(['command', 'args'])
+ 
+     def test_run_invalid_environment(self):
+-        with raises(KiwiCommandError):
++        with raises(KiwiCommandNotFound):
+             Command.run(['command', 'args'], {'HOME': '/root'})
+ 
+     @patch('kiwi.path.Path.which')
+diff --git a/test/unit/xml_description_test.py b/test/unit/xml_description_test.py
+index ce1c831994..672a19f2aa 100644
+--- a/test/unit/xml_description_test.py
++++ b/test/unit/xml_description_test.py
+@@ -8,6 +8,7 @@
+ from kiwi.xml_description import XMLDescription
+ 
+ from kiwi.exceptions import (
++    KiwiCommandError,
+     KiwiSchemaImportError,
+     KiwiValidationError,
+     KiwiDescriptionInvalid,
+@@ -203,14 +204,7 @@ def test_load_schema_description_from_file_invalid(
+ 
+         mock_relax.return_value = mock_rng_validate
+         mock_schematron.return_value = mock_sch_validate
+-        command_run = namedtuple(
+-            'command', ['output', 'error', 'returncode']
+-        )
+-        mock_command.return_value = command_run(
+-            output='jing output\n',
+-            error='',
+-            returncode=1
+-        )
++        mock_command.side_effect = KiwiCommandError('jing output')
+         with raises(KiwiDescriptionInvalid):
+             self.description_from_file.load()
+ 
