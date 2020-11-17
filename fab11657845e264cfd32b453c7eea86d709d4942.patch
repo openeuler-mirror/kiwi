@@ -1,0 +1,48 @@
+diff --git a/tools/README.md b/tools/README.md
+deleted file mode 100755
+index 842f7d0645..0000000000
+--- a/tools/README.md
++++ /dev/null
+@@ -1,19 +0,0 @@
+-# KIWI - tools
+-
+-this directory contains helper scripts and programs around
+-the kiwi image technology. If you need them in your image
+-just set the package kiwi-tools in your config.xml file
+-
+-* /usr/bin/utimer
+-
+- run a timer process like the kernel
+-
+-* /usr/bin/dcounter
+-
+- a small program to count bytes on a transfer so that you
+- can show a progress information about the transfer
+-
+-* /usr/bin/isconsole
+-
+- a small program sending the KDGETMODE ioctl to /dev/console
+- in order to check if we can fbiterm on that console
+diff --git a/tools/README.rst b/tools/README.rst
+new file mode 100755
+index 0000000000..c0b45ee6a4
+--- /dev/null
++++ b/tools/README.rst
+@@ -0,0 +1,17 @@
++KIWI - tools
++============
++
++this directory contains helper scripts and programs around
++the kiwi image technology. If you need them in your image
++just set the package kiwi-tools in your config.xml file
++
++* /usr/bin/utimer
++  run a timer process like the kernel
++
++* /usr/bin/dcounter
++  a small program to count bytes on a transfer so that you
++  can show a progress information about the transfer
++
++* /usr/bin/isconsole
++  a small program sending the KDGETMODE ioctl to /dev/console
++  in order to check if we can fbiterm on that console
