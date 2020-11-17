@@ -1,0 +1,9 @@
+diff --git a/.codacy.yml b/.codacy.yml
+index 2dfc01d08d..38de1c49aa 100644
+--- a/.codacy.yml
++++ b/.codacy.yml
+@@ -5,3 +5,4 @@ exclude_paths:
+   - 'doc/**'
+   - 'build-tests/**'
+   - 'helper/**'
++  - '.github/**'
