@@ -1,0 +1,11 @@
+diff --git a/.codacy.yml b/.codacy.yml
+index 241bd2eabd..2dfc01d08d 100644
+--- a/.codacy.yml
++++ b/.codacy.yml
+@@ -2,3 +2,6 @@
+ exclude_paths:
+   - 'kiwi/xml_parse.py'
+   - 'test/**'
++  - 'doc/**'
++  - 'build-tests/**'
++  - 'helper/**'
