@@ -1,0 +1,105 @@
+diff --git a/kiwi/package_manager/microdnf.py b/kiwi/package_manager/microdnf.py
+index dc32009022..e91f1678c3 100644
+--- a/kiwi/package_manager/microdnf.py
++++ b/kiwi/package_manager/microdnf.py
+@@ -102,7 +102,16 @@ def process_install_requests_bootstrap(self, root_bind=None):
+         bash_command = [
+             'microdnf'
+         ] + ['--refresh'] + self.dnf_args + [
+-            '--installroot', self.root_dir
++            '--installroot', self.root_dir, '--noplugins',
++            '--setopt=cachedir={0}'.format(
++                self.repository.shared_dnf_dir['cache-dir']
++            ),
++            '--setopt=reposdir={0}'.format(
++                self.repository.shared_dnf_dir['reposd-dir']
++            ),
++            '--setopt=varsdir={0}'.format(
++                self.repository.shared_dnf_dir['vars-dir']
++            )
+         ] + self.custom_args + ['install'] + self.package_requests
+         self.cleanup_requests()
+         return Command.call(
+diff --git a/kiwi/repository/dnf.py b/kiwi/repository/dnf.py
+index 13712567fe..fa27130fec 100644
+--- a/kiwi/repository/dnf.py
++++ b/kiwi/repository/dnf.py
+@@ -80,7 +80,8 @@ def post_init(self, custom_args=None):
+         self.shared_dnf_dir = {
+             'reposd-dir': manager_base + '/repos',
+             'cache-dir': manager_base + '/cache',
+-            'pluginconf-dir': manager_base + '/pluginconf'
++            'pluginconf-dir': manager_base + '/pluginconf',
++            'vars-dir': manager_base + '/vars'
+         }
+ 
+         self.runtime_dnf_config_file = NamedTemporaryFile(
+@@ -132,6 +133,8 @@ def use_default_location(self):
+             self.root_dir + '/var/cache/dnf'
+         self.shared_dnf_dir['pluginconf-dir'] = \
+             self.root_dir + '/etc/dnf/plugins'
++        self.shared_dnf_dir['vars-dir'] = \
++            self.root_dir + '/etc/dnf/vars'
+         self._create_runtime_config_parser()
+         self._create_runtime_plugin_config_parser()
+         self._write_runtime_config()
+@@ -284,6 +287,9 @@ def _create_runtime_config_parser(self):
+         self.runtime_dnf_config.set(
+             'main', 'reposdir', self.shared_dnf_dir['reposd-dir']
+         )
++        self.runtime_dnf_config.set(
++            'main', 'varsdir', self.shared_dnf_dir['vars-dir']
++        )
+         self.runtime_dnf_config.set(
+             'main', 'pluginconfpath', self.shared_dnf_dir['pluginconf-dir']
+         )
+diff --git a/test/unit/package_manager/microdnf_test.py b/test/unit/package_manager/microdnf_test.py
+index b9625b2a3c..3e5af666e0 100644
+--- a/test/unit/package_manager/microdnf_test.py
++++ b/test/unit/package_manager/microdnf_test.py
+@@ -18,6 +18,12 @@ def setup(self):
+                 'command_env': ['env']
+             }
+         )
++        repository.shared_dnf_dir = {
++            'reposd-dir': 'repos',
++            'cache-dir': 'cache',
++            'pluginconf-dir': 'pluginconf',
++            'vars-dir': 'vars'
++        }
+         self.manager = PackageManagerMicroDnf(repository)
+ 
+     def test_request_package(self):
+@@ -46,7 +52,11 @@ def test_process_install_requests_bootstrap(self, mock_run, mock_call):
+             [
+                 'bash', '-c',
+                 'microdnf --refresh --config /root-dir/dnf.conf -y '
+-                '--installroot /root-dir install vim'
++                '--installroot /root-dir --noplugins '
++                '--setopt=cachedir=cache '
++                '--setopt=reposdir=repos '
++                '--setopt=varsdir=vars '
++                'install vim'
+             ], ['env']
+         )
+ 
+diff --git a/test/unit/repository/dnf_test.py b/test/unit/repository/dnf_test.py
+index 9eb414f454..5c1e010090 100644
+--- a/test/unit/repository/dnf_test.py
++++ b/test/unit/repository/dnf_test.py
+@@ -33,6 +33,7 @@ def setup(self, mock_path, mock_config, mock_temp):
+         assert runtime_dnf_config.set.call_args_list == [
+             call('main', 'cachedir', '/shared-dir/dnf/cache'),
+             call('main', 'reposdir', '/shared-dir/dnf/repos'),
++            call('main', 'varsdir', '/shared-dir/dnf/vars'),
+             call('main', 'pluginconfpath', '/shared-dir/dnf/pluginconf'),
+             call('main', 'keepcache', '1'),
+             call('main', 'debuglevel', '2'),
+@@ -70,6 +71,7 @@ def test_use_default_location(self, mock_config):
+         assert runtime_dnf_config.set.call_args_list == [
+             call('main', 'cachedir', '../data/var/cache/dnf'),
+             call('main', 'reposdir', '../data/etc/yum.repos.d'),
++            call('main', 'varsdir', '../data/etc/dnf/vars'),
+             call('main', 'pluginconfpath', '../data/etc/dnf/plugins'),
+             call('main', 'keepcache', '1'),
+             call('main', 'debuglevel', '2'),
