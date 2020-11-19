@@ -1,0 +1,27 @@
+diff --git a/kiwi/package_manager/microdnf.py b/kiwi/package_manager/microdnf.py
+index e91f1678c3..7301b24d4e 100644
+--- a/kiwi/package_manager/microdnf.py
++++ b/kiwi/package_manager/microdnf.py
+@@ -102,7 +102,8 @@ def process_install_requests_bootstrap(self, root_bind=None):
+         bash_command = [
+             'microdnf'
+         ] + ['--refresh'] + self.dnf_args + [
+-            '--installroot', self.root_dir, '--noplugins',
++            '--installroot', self.root_dir,
++            '--releasever=0', '--noplugins',
+             '--setopt=cachedir={0}'.format(
+                 self.repository.shared_dnf_dir['cache-dir']
+             ),
+diff --git a/test/unit/package_manager/microdnf_test.py b/test/unit/package_manager/microdnf_test.py
+index 3e5af666e0..5809655c3f 100644
+--- a/test/unit/package_manager/microdnf_test.py
++++ b/test/unit/package_manager/microdnf_test.py
+@@ -52,7 +52,7 @@ def test_process_install_requests_bootstrap(self, mock_run, mock_call):
+             [
+                 'bash', '-c',
+                 'microdnf --refresh --config /root-dir/dnf.conf -y '
+-                '--installroot /root-dir --noplugins '
++                '--installroot /root-dir --releasever=0 --noplugins '
+                 '--setopt=cachedir=cache '
+                 '--setopt=reposdir=repos '
+                 '--setopt=varsdir=vars '
