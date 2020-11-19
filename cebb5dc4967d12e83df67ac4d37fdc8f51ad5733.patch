@@ -1,0 +1,72 @@
+diff --git a/kiwi/repository/dnf.py b/kiwi/repository/dnf.py
+index fa27130fec..39b5bfc15e 100644
+--- a/kiwi/repository/dnf.py
++++ b/kiwi/repository/dnf.py
+@@ -327,7 +327,8 @@ def _create_runtime_plugin_config_parser(self):
+     def _write_runtime_config(self):
+         with open(self.runtime_dnf_config_file.name, 'w') as config:
+             self.runtime_dnf_config.write(config)
+-        dnf_plugin_config_file = \
+-            self.shared_dnf_dir['pluginconf-dir'] + '/priorities.conf'
+-        with open(dnf_plugin_config_file, 'w') as pluginconfig:
+-            self.runtime_dnf_plugin_config.write(pluginconfig)
++        if os.path.exists(self.shared_dnf_dir['pluginconf-dir']):
++            dnf_plugin_config_file = \
++                self.shared_dnf_dir['pluginconf-dir'] + '/priorities.conf'
++            with open(dnf_plugin_config_file, 'w') as pluginconfig:
++                self.runtime_dnf_plugin_config.write(pluginconfig)
+diff --git a/test/unit/repository/dnf_test.py b/test/unit/repository/dnf_test.py
+index 5c1e010090..a564a57881 100644
+--- a/test/unit/repository/dnf_test.py
++++ b/test/unit/repository/dnf_test.py
+@@ -1,6 +1,6 @@
+ from pytest import fixture
+ from mock import (
+-    patch, call
++    patch, call, mock_open
+ )
+ import mock
+ 
+@@ -54,9 +54,18 @@ def test_post_init_no_custom_args(self, mock_path, mock_temp):
+ 
+     @patch('kiwi.repository.dnf.NamedTemporaryFile')
+     @patch('kiwi.repository.dnf.Path.create')
+-    def test_post_init_with_custom_args(self, mock_path, mock_temp):
+-        with patch('builtins.open', create=True):
++    @patch('os.path.exists')
++    def test_post_init_with_custom_args(
++        self, mock_exists, mock_path, mock_temp
++    ):
++        mock_exists.return_value = True
++        m_open = mock_open()
++        with patch('builtins.open', m_open, create=True):
+             self.repo.post_init(['check_signatures'])
++            assert m_open.call_args_list == [
++                call(mock_temp.return_value.name, 'w'),
++                call('/shared-dir/dnf/pluginconf/priorities.conf', 'w')
++            ]
+         assert self.repo.custom_args == []
+         assert self.repo.gpg_check == '1'
+ 
+@@ -131,7 +140,9 @@ def test_add_repo(self, mock_exists, mock_buildservice, mock_config):
+     @patch('kiwi.repository.dnf.ConfigParser')
+     @patch('kiwi.repository.dnf.Defaults.is_buildservice_worker')
+     @patch('os.path.exists')
+-    def test_add_repo_inside_buildservice(self, mock_exists, mock_buildservice, mock_config):
++    def test_add_repo_inside_buildservice(
++        self, mock_exists, mock_buildservice, mock_config
++    ):
+         repo_config = mock.Mock()
+         mock_buildservice.return_value = True
+         mock_config.return_value = repo_config
+@@ -188,7 +199,9 @@ def test_setup_package_database_configuration_bootstrapped_system(
+     @patch('kiwi.repository.dnf.ConfigParser')
+     @patch('kiwi.repository.dnf.Defaults.is_buildservice_worker')
+     @patch('os.path.exists')
+-    def test_add_repo_with_gpgchecks(self, mock_exists, mock_buildservice, mock_config):
++    def test_add_repo_with_gpgchecks(
++        self, mock_exists, mock_buildservice, mock_config
++    ):
+         repo_config = mock.Mock()
+         mock_buildservice.return_value = False
+         mock_config.return_value = repo_config
