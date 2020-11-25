@@ -1,0 +1,451 @@
+diff --git a/kiwi/markup/__init__.py b/kiwi/markup/__init__.py
+index c8d3a53ea3..89a49bb621 100644
+--- a/kiwi/markup/__init__.py
++++ b/kiwi/markup/__init__.py
+@@ -15,29 +15,47 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ import logging
+ 
+ # project
+-from kiwi.markup.any import MarkupAny
+-from kiwi.markup.xml import MarkupXML
+-
+ from kiwi.exceptions import KiwiAnyMarkupPluginError
+ 
+ log = logging.getLogger('kiwi')
+ 
+ 
+-class Markup:
++class Markup(metaclass=ABCMeta):
+     """
+     **Markup factory**
+ 
+     :param string description: path to description file
+     :param string xml_content: description data as content string
+     """
+-    def __new__(self, description):
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(description: str, name: str='any'):  # noqa: E252
+         try:
+-            markup = MarkupAny(description)
++            markup = Markup._load_markup_by_name(name, description)
+             log.info('Support for multiple markup descriptions available')
+         except KiwiAnyMarkupPluginError:
+-            markup = MarkupXML(description)
++            markup = Markup._load_markup_by_name('xml', description)
+             log.info('Support for XML markup available')
+         return markup
++
++    @staticmethod
++    def _load_markup_by_name(name, description):
++        name_map = {
++            'any': 'Any',
++            'xml': 'XML'
++        }
++        markup = importlib.import_module('kiwi.markup.{0}'.format(name))
++        return markup.__dict__['Markup{0}'.format(name_map[name])](
++            description
++        )
+diff --git a/kiwi/package_manager/__init__.py b/kiwi/package_manager/__init__.py
+index b578c7c7a9..69529f610f 100644
+--- a/kiwi/package_manager/__init__.py
++++ b/kiwi/package_manager/__init__.py
+@@ -15,23 +15,21 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++import importlib
++from typing import List
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ import logging
+ 
+ # project
+-from kiwi.package_manager.zypper import PackageManagerZypper
+-from kiwi.package_manager.apt import PackageManagerApt
+-from kiwi.package_manager.dnf import PackageManagerDnf
+-from kiwi.package_manager.microdnf import PackageManagerMicroDnf
+-from kiwi.package_manager.pacman import PackageManagerPacman
+-
+-from kiwi.exceptions import (
+-    KiwiPackageManagerSetupError
+-)
++from kiwi.exceptions import KiwiPackageManagerSetupError
+ 
+ log = logging.getLogger('kiwi')
+ 
+ 
+-class PackageManager:
++class PackageManager(metaclass=ABCMeta):
+     """
+     **Package manager factory**
+ 
+@@ -45,24 +43,39 @@ class PackageManager:
+ 
+     :rtype: PackageManagerBase subclass
+     """
+-    def __new__(self, repository, package_manager, custom_args=None):
+-        if package_manager == 'zypper':
+-            manager = PackageManagerZypper(repository, custom_args)
+-        elif package_manager == 'dnf' or package_manager == 'yum':
+-            manager = PackageManagerDnf(repository, custom_args)
+-        elif package_manager == 'microdnf':
+-            manager = PackageManagerMicroDnf(repository, custom_args)
+-        elif package_manager == 'apt-get':
+-            manager = PackageManagerApt(repository, custom_args)
+-        elif package_manager == 'pacman':
+-            manager = PackageManagerPacman(repository, custom_args)
+-        else:
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(
++        repository: object, package_manager_name: str,
++        custom_args: List=None  # noqa: E252
++    ):
++        name_map = {
++            'zypper': ['zypper', 'Zypper'],
++            'dnf': ['dnf', 'Dnf'],
++            'yum': ['dnf', 'Dnf'],
++            'microdnf': ['microdnf', 'MicroDnf'],
++            'pacman': ['pacman', 'Pacman'],
++            'apt-get': ['apt', 'Apt']
++        }
++        try:
++            (module_namespace, module_name) = name_map[package_manager_name]
++            package_manager = importlib.import_module(
++                'kiwi.package_manager.{0}'.format(module_namespace)
++            )
++            module_name = 'PackageManager{0}'.format(module_name)
++            manager = package_manager.__dict__[module_name](
++                repository, custom_args
++            )
++        except Exception as issue:
+             raise KiwiPackageManagerSetupError(
+-                'Support for package manager %s not implemented' %
+-                package_manager
++                'Support for package manager {0} not implemented {1}'.format(
++                    package_manager_name, issue
++                )
+             )
+-
+         log.info(
+-            'Using package manager backend: %s', package_manager
++            'Using package manager backend: {0}'.format(package_manager_name)
+         )
+         return manager
+diff --git a/kiwi/system/prepare.py b/kiwi/system/prepare.py
+index 2166c17015..fab99520d8 100644
+--- a/kiwi/system/prepare.py
++++ b/kiwi/system/prepare.py
+@@ -177,7 +177,7 @@ def setup_repositories(self, clear_cache=False, signing_keys=None):
+                 repo.delete_repo_cache(repo_alias)
+             self.uri_list.append(uri)
+         repo.cleanup_unused_repos()
+-        return PackageManager(
++        return PackageManager.new(
+             repo, package_manager
+         )
+ 
+@@ -340,7 +340,7 @@ def pinch_system(self, manager=None, force=False):
+             try:
+                 if manager is None:
+                     package_manager = self.xml_state.get_package_manager()
+-                    manager = PackageManager(
++                    manager = PackageManager.new(
+                         Repository(self.root_bind, package_manager),
+                         package_manager
+                     )
+@@ -459,7 +459,7 @@ def clean_package_manager_leftovers(self):
+         at run time such as macros
+         """
+         package_manager = self.xml_state.get_package_manager()
+-        manager = PackageManager(
++        manager = PackageManager.new(
+             Repository(self.root_bind, package_manager),
+             package_manager
+         )
+diff --git a/kiwi/xml_description.py b/kiwi/xml_description.py
+index 38ac682d17..bff10d8fc5 100644
+--- a/kiwi/xml_description.py
++++ b/kiwi/xml_description.py
+@@ -67,7 +67,7 @@ def __init__(self, description=None, derived_from=None, xml_content=None):
+             raise KiwiDescriptionConflict(
+                 'description and xml_content are mutually exclusive'
+             )
+-        self.markup = Markup(description or xml_content)
++        self.markup = Markup.new(description or xml_content)
+         self.description = self.markup.get_xml_description()
+         self.derived_from = derived_from
+         self.description_origin = description
+diff --git a/test/unit/markup/markup_test.py b/test/unit/markup/markup_test.py
+index e8d835a382..7dec35a6c5 100644
+--- a/test/unit/markup/markup_test.py
++++ b/test/unit/markup/markup_test.py
+@@ -6,14 +6,14 @@
+ 
+ 
+ class TestMarkup:
+-    @patch('kiwi.markup.MarkupAny')
++    @patch('kiwi.markup.any.MarkupAny')
+     def test_MarkupAny(self, mock_MarkupAny):
+-        Markup('description')
++        Markup.new('description')
+         mock_MarkupAny.assert_called_once_with('description')
+ 
+-    @patch('kiwi.markup.MarkupXML')
+-    @patch('kiwi.markup.MarkupAny')
++    @patch('kiwi.markup.xml.MarkupXML')
++    @patch('kiwi.markup.any.MarkupAny')
+     def test_MarkupXML(self, mock_MarkupAny, mock_MarkupXML):
+         mock_MarkupAny.side_effect = KiwiAnyMarkupPluginError('load-error')
+-        Markup('description')
++        Markup.new('description')
+         mock_MarkupXML.assert_called_once_with('description')
+diff --git a/test/unit/package_manager/init_test.py b/test/unit/package_manager/init_test.py
+index 765301cb22..77512f6282 100644
+--- a/test/unit/package_manager/init_test.py
++++ b/test/unit/package_manager/init_test.py
+@@ -11,40 +11,40 @@
+ class TestPackageManager:
+     def test_package_manager_not_implemented(self):
+         with raises(KiwiPackageManagerSetupError):
+-            PackageManager('repository', 'ms-manager')
++            PackageManager.new('repository', 'ms-manager')
+ 
+-    @patch('kiwi.package_manager.PackageManagerZypper')
++    @patch('kiwi.package_manager.zypper.PackageManagerZypper')
+     def test_manager_zypper(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'zypper')
++        PackageManager.new(repository, 'zypper')
+         mock_manager.assert_called_once_with(repository, None)
+ 
+-    @patch('kiwi.package_manager.PackageManagerDnf')
++    @patch('kiwi.package_manager.dnf.PackageManagerDnf')
+     def test_manager_dnf(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'dnf')
++        PackageManager.new(repository, 'dnf')
+         mock_manager.assert_called_once_with(repository, None)
+ 
+-    @patch('kiwi.package_manager.PackageManagerDnf')
++    @patch('kiwi.package_manager.dnf.PackageManagerDnf')
+     def test_manager_yum(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'yum')
++        PackageManager.new(repository, 'yum')
+         mock_manager.assert_called_once_with(repository, None)
+ 
+-    @patch('kiwi.package_manager.PackageManagerMicroDnf')
++    @patch('kiwi.package_manager.microdnf.PackageManagerMicroDnf')
+     def test_manager_microdnf(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'microdnf')
++        PackageManager.new(repository, 'microdnf')
+         mock_manager.assert_called_once_with(repository, None)
+ 
+-    @patch('kiwi.package_manager.PackageManagerApt')
++    @patch('kiwi.package_manager.apt.PackageManagerApt')
+     def test_manager_apt(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'apt-get')
++        PackageManager.new(repository, 'apt-get')
+         mock_manager.assert_called_once_with(repository, None)
+ 
+-    @patch('kiwi.package_manager.PackageManagerPacman')
++    @patch('kiwi.package_manager.pacman.PackageManagerPacman')
+     def test_manager_pacman(self, mock_manager):
+         repository = Mock()
+-        PackageManager(repository, 'pacman')
++        PackageManager.new(repository, 'pacman')
+         mock_manager.assert_called_once_with(repository, None)
+diff --git a/test/unit/system/prepare_test.py b/test/unit/system/prepare_test.py
+index 52e8beaf9b..390f49f611 100644
+--- a/test/unit/system/prepare_test.py
++++ b/test/unit/system/prepare_test.py
+@@ -4,9 +4,8 @@
+     raises, fixture
+ )
+ from mock import (
+-    patch, call
++    patch, call, Mock, MagicMock, ANY
+ )
+-import mock
+ 
+ from kiwi.exceptions import (
+     KiwiBootStrapPhaseFailed,
+@@ -39,16 +38,16 @@ def setup(self, mock_get_logfile, mock_root_bind, mock_root_init):
+         self.description_dir = os.path.dirname(description.description_origin)
+         self.xml = description.load()
+ 
+-        self.manager = mock.MagicMock(
+-            return_value=mock.MagicMock()
++        self.manager = MagicMock(
++            return_value=MagicMock()
+         )
+         self.manager.package_requests = ['foo']
+         self.manager.collection_requests = ['foo']
+         self.manager.product_requests = ['foo']
+ 
+-        root_init = mock.MagicMock()
++        root_init = MagicMock()
+         mock_root_init.return_value = root_init
+-        root_bind = mock.MagicMock()
++        root_bind = MagicMock()
+         root_bind.root_dir = 'root_dir'
+         mock_root_bind.return_value = root_bind
+         self.state = XMLState(
+@@ -82,19 +81,19 @@ def test_init_with_derived_from_image(
+         )
+         xml = description.load()
+ 
+-        root_init = mock.MagicMock()
++        root_init = MagicMock()
+         mock_root_init.return_value = root_init
+-        root_import = mock.Mock()
+-        root_import.sync_data = mock.Mock()
++        root_import = Mock()
++        root_import.sync_data = Mock()
+         mock_root_import.return_value = root_import
+-        root_bind = mock.MagicMock()
++        root_bind = MagicMock()
+         root_bind.root_dir = 'root_dir'
+         mock_root_bind.return_value = root_bind
+         state = XMLState(
+             xml, profiles=['containerFlavour'], build_type='docker'
+         )
+-        uri = mock.Mock()
+-        get_derived_from_image_uri = mock.Mock(
++        uri = Mock()
++        get_derived_from_image_uri = Mock(
+             return_value=uri
+         )
+         state.get_derived_from_image_uri = get_derived_from_image_uri
+@@ -176,22 +175,22 @@ def test_setup_repositories(
+     ):
+         mock_exists.return_value = True
+         mock_package_manager.return_value = 'package-manager-name'
+-        uri = mock.Mock()
++        uri = Mock()
+         mock_uri.return_value = uri
+-        self.system.root_bind = mock.Mock()
+-        uri.is_remote = mock.Mock(
++        self.system.root_bind = Mock()
++        uri.is_remote = Mock(
+             return_value=False
+         )
+-        uri.translate = mock.Mock(
++        uri.translate = Mock(
+             return_value='uri'
+         )
+-        uri.alias = mock.Mock(
++        uri.alias = Mock(
+             return_value='uri-alias'
+         )
+-        uri.credentials_file_name = mock.Mock(
++        uri.credentials_file_name = Mock(
+             return_value='credentials-file'
+         )
+-        repo = mock.Mock()
++        repo = Mock()
+         mock_repo.return_value = repo
+ 
+         self.system.setup_repositories(
+@@ -247,19 +246,19 @@ def test_setup_repositories_local_not_existing(
+     ):
+         mock_exists.return_value = False
+         mock_package_manager.return_value = 'package-manager-name'
+-        uri = mock.Mock()
++        uri = Mock()
+         mock_uri.return_value = uri
+-        self.system.root_bind = mock.Mock()
+-        uri.is_remote = mock.Mock(
++        self.system.root_bind = Mock()
++        uri.is_remote = Mock(
+             return_value=False
+         )
+-        uri.translate = mock.Mock(
++        uri.translate = Mock(
+             return_value='uri'
+         )
+-        uri.alias = mock.Mock(
++        uri.alias = Mock(
+             return_value='uri-alias'
+         )
+-        repo = mock.Mock()
++        repo = Mock()
+         mock_repo.return_value = repo
+         with self._caplog.at_level(logging.WARNING):
+             self.system.setup_repositories()
+@@ -272,8 +271,8 @@ def test_install_bootstrap(
+         self, mock_exists, mock_tar, mock_poll, mock_collection_type
+     ):
+         mock_exists.return_value = True
+-        tar = mock.Mock()
+-        tar.extract = mock.Mock()
++        tar = Mock()
++        tar.extract = Mock()
+         mock_tar.return_value = tar
+         mock_collection_type.return_value = 'onlyRequired'
+         self.system.install_bootstrap(self.manager)
+@@ -329,8 +328,8 @@ def test_install_system(
+         self, mock_exists, mock_tar, mock_poll, mock_collection_type
+     ):
+         mock_exists.return_value = True
+-        tar = mock.Mock()
+-        tar.extract = mock.Mock()
++        tar = Mock()
++        tar.extract = Mock()
+         mock_tar.return_value = tar
+         mock_collection_type.return_value = 'onlyRequired'
+         self.system.install_system(self.manager)
+@@ -376,14 +375,14 @@ def test_pinch_system_raises(self, mock_poll):
+             self.system.pinch_system(self.manager)
+         self.manager.process_delete_requests.assert_called_once_with(False)
+ 
+-    @patch('kiwi.package_manager.PackageManagerZypper.process_delete_requests')
++    @patch('kiwi.package_manager.zypper.PackageManagerZypper.process_delete_requests')
+     @patch('kiwi.system.prepare.Repository')
+     @patch('kiwi.system.prepare.CommandProcess.poll_show_progress')
+     def test_pinch_system_without_manager(
+         self, mock_poll, mock_repo, mock_requests
+     ):
+         self.system.pinch_system()
+-        mock_repo.assert_called_once_with(mock.ANY, 'zypper')
++        mock_repo.assert_called_once_with(ANY, 'zypper')
+         mock_requests.assert_called_once_with(False)
+ 
+     @patch('kiwi.system.prepare.CommandProcess.poll')
+@@ -398,12 +397,13 @@ def test_destructor(self):
+     @patch('kiwi.system.prepare.Repository')
+     @patch('kiwi.system.prepare.PackageManager')
+     def test_clean_package_manager_leftovers(self, mock_manager, mock_repo):
++        manager = Mock()
++        mock_manager.new.return_value = manager
+         self.system.clean_package_manager_leftovers()
+-        assert mock_repo.called
+-        assert mock_manager.called
++        manager.clean_leftovers.assert_called_once_with()
+ 
+     def test_destructor_raising(self):
+-        self.system.root_bind = mock.Mock()
++        self.system.root_bind = Mock()
+         self.system.root_bind.cleanup.side_effect = ValueError("nothing")
+         with self._caplog.at_level(logging.INFO):
+             del self.system
