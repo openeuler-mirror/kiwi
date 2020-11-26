@@ -2,12 +2,19 @@
 
 Name:           kiwi
 Version:        9.21.5
-Release:        1
+Release:        2
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
 URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
+
+Patch0:	Added-microdnf-support-in-XML-schema.patch
+Patch1:	Simplify-build_status-helpe.patch
+Patch2:	Include-box-plugin-images-to-build_status.patch
+Patch3:	Added-s390-SLE15-integration-tests.patch
+Patch4:	Cosmetic-update-for-build-status-helper.patch
+Patch5:	Added-universal-box-to-build-status-helper.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -189,6 +196,12 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Thu Nov 26 2020 wuchaochao <wuchaochao4@huawei.com> - 9.21.5-2
+- Type:bugfix
+- ID:NA
+- SUG:NA
+- DESC:fix issues: 124E39 125NZG
+
 * Tue Jul 28 2020 xinghe <xinghe1@huawei.com> - 9.21.5-1
 - update version to 9.21.5
 

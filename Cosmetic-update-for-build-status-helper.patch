@@ -1,0 +1,58 @@
+From 0d006cf1225bd6ca76057ae11e731ff7b4cd0d97 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20Sch=C3=A4fer?= <ms@suse.de>
+Date: Mon, 21 Sep 2020 17:04:08 +0200
+Subject: [PATCH] Cosmetic update for build status helper
+
+Show disabled integration test builds with a clear indicator
+---
+ helper/build_status.sh | 28 +++++++++++++++-------------
+ 1 file changed, 15 insertions(+), 13 deletions(-)
+
+diff --git a/helper/build_status.sh b/helper/build_status.sh
+index 09af11c964..c740700076 100755
+--- a/helper/build_status.sh
++++ b/helper/build_status.sh
+@@ -23,9 +23,11 @@ do
+             echo -e "$(echo $line |\
+                 sed -e s@^F@'\\033[31mF\\e[0m'@ |\
+                 sed -e s@^U@'\\033[33mU\\e[0m'@ |\
++                sed -e s@^D@'\\033[36mD\\e[0m'@ |\
+                 sed -e s@^\\.@'\\033[32m.\\e[0m'@)"
+         done < <(osc -A https://api.opensuse.org \
+-            results -V "${project}" | grep -B100 Legend | grep -v Legend
++            results -V "${project}" | sed -e 's@^   @  D @' |\
++            grep -B100 Legend | grep -v Legend
+         )
+     else
+         for package in $(osc -A https://api.opensuse.org list "${project}");do
+@@ -43,18 +45,18 @@ if [ ! "$1" = "refresh" ];then
+ cat << EOF
+ Legend:
+  . succeeded
+-   disabled
+- U unresolvable
+- F failed
+- B broken
+- b blocked
+- % building
+- f finished
+- s scheduled
+- L locked
+- x excluded
+- d dispatching
+- S signing
++ D Disabled
++ U unresolvable
++ F failed
++ B broken
++ b blocked
++ % building
++ f finished
++ s scheduled
++ L locked
++ x excluded
++ d dispatching
++ S signing
+  ? buildstatus not available
+ EOF
+ fi

@@ -1,0 +1,49 @@
+From 49d09e9667e90562470d58ab369614f2db8c5c0c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20Sch=C3=A4fer?= <ms@suse.de>
+Date: Thu, 13 Aug 2020 11:17:33 +0200
+Subject: [PATCH] Include box plugin images to build_status
+
+Also show some colors for failed and unresolvable builds
+---
+ helper/build_status.sh | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/helper/build_status.sh b/helper/build_status.sh
+index ef93ee847c..b8fe0ea8da 100755
+--- a/helper/build_status.sh
++++ b/helper/build_status.sh
+@@ -1,6 +1,9 @@
+ #!/bin/bash
+
+ for project in \
++    Virtualization:Appliances:SelfContained:fedora \
++    Virtualization:Appliances:SelfContained:suse \
++    Virtualization:Appliances:SelfContained:ubuntu \
+     Virtualization:Appliances:Images:Testing_x86:suse \
+     Virtualization:Appliances:Images:Testing_x86:centos \
+     Virtualization:Appliances:Images:Testing_x86:fedora \
+@@ -9,13 +12,20 @@ for project in \
+     Virtualization:Appliances:Images:Testing_arm:suse \
+     Virtualization:Appliances:Images:Testing_arm:fedora \
+     Virtualization:Appliances:Images:Testing_ppc:suse \
++    Virtualization:Appliances:Images:Testing_ppc:sle15 \
+     Virtualization:Appliances:Images:Testing_ppc:fedora \
+     Virtualization:Appliances:Images:Testing_x86:archlinux
+ do
+     echo "${project}"
+     if [ ! "$1" = "refresh" ];then
+-        osc -A https://api.opensuse.org \
++        while read -r line;do
++            echo -e "$(echo $line |\
++                sed -e s@^F@'\\033[31mF\\e[0m'@ |\
++                sed -e s@^U@'\\033[33mU\\e[0m'@ |\
++                sed -e s@^\\.@'\\033[32m.\\e[0m'@)"
++        done < <(osc -A https://api.opensuse.org \
+             results -V "${project}" | grep -B100 Legend | grep -v Legend
++        )
+     else
+         for package in $(osc -A https://api.opensuse.org list "${project}");do
+             if [[ "${package}" =~ ^test- ]];then
+~
+~
+~

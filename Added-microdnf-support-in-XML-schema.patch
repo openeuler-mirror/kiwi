@@ -1,0 +1,49 @@
+From 2d6867c20825c2f021e91365fd6ed4b1ad5db813 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20Sch=C3=A4fer?= <ms@suse.de>
+Date: Mon, 16 Nov 2020 16:37:58 +0100
+Subject: [PATCH] Added microdnf support in XML schema
+
+The XML schema did not allow to specify microdnf as
+supported package manager
+---
+ kiwi/schema/kiwi.rnc | 2 +-
+ kiwi/schema/kiwi.rng | 1 +
+ kiwi/xml_parse.py    | 1 +
+ 3 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/kiwi/schema/kiwi.rnc b/kiwi/schema/kiwi.rnc
+index a9dc8d22c7..35f8750cb1 100644
+--- a/kiwi/schema/kiwi.rnc
++++ b/kiwi/schema/kiwi.rnc
+@@ -812,7 +812,7 @@ div {
+ #
+ div {
+     k.packagemanager.content = 
+-        "apt-get" | "zypper" | "yum" | "dnf" | "pacman"
++        "apt-get" | "zypper" | "yum" | "dnf" | "microdnf" | "pacman"
+     k.packagemanager.attlist = empty
+     k.packagemanager =
+         ## Name of the Package Manager
+diff --git a/kiwi/schema/kiwi.rng b/kiwi/schema/kiwi.rng
+index 270e2eaa83..3d2a12595c 100644
+--- a/kiwi/schema/kiwi.rng
++++ b/kiwi/schema/kiwi.rng
+@@ -1250,6 +1250,7 @@ the device is looked up in /dev/disk/by-* and /dev/mapper/*</a:documentation>
+         <value>zypper</value>
+         <value>yum</value>
+         <value>dnf</value>
++        <value>microdnf</value>
+         <value>pacman</value>
+       </choice>
+     </define>
+diff --git a/kiwi/xml_parse.py b/kiwi/xml_parse.py
+index 79b52455f3..3f103b7655 100644
+--- a/kiwi/xml_parse.py
++++ b/kiwi/xml_parse.py
+@@ -730,6 +730,7 @@ class k_packagemanager_content(object):
+     ZYPPER='zypper'
+     YUM='yum'
+     DNF='dnf'
++    MICRODNF='microdnf'
+     PACMAN='pacman'
+ 
