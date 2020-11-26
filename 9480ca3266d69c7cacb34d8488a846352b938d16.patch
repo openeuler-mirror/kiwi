@@ -1,0 +1,647 @@
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index c274679fb5..98c171b1c0 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -573,7 +573,7 @@ def append_unpartitioned_space(self):
+             firmware = FirmWare(self.xml_state)
+             loop_provider = LoopDevice(disk_format.diskname)
+             loop_provider.create(overwrite=False)
+-            partitioner = Partitioner(
++            partitioner = Partitioner.new(
+                 firmware.get_partition_table_type(), loop_provider
+             )
+             partitioner.resize_table()
+diff --git a/kiwi/partitioner/__init__.py b/kiwi/partitioner/__init__.py
+index 0e536c500c..b06cf9af5d 100644
+--- a/kiwi/partitioner/__init__.py
++++ b/kiwi/partitioner/__init__.py
+@@ -15,22 +15,20 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ import logging
+ 
+ # project
+-from kiwi.defaults import Defaults
+-from kiwi.partitioner.gpt import PartitionerGpt
+-from kiwi.partitioner.msdos import PartitionerMsDos
+-from kiwi.partitioner.dasd import PartitionerDasd
+-
+-from kiwi.exceptions import (
+-    KiwiPartitionerSetupError
+-)
++from kiwi.exceptions import KiwiPartitionerSetupError
+ 
+ log = logging.getLogger('kiwi')
+ 
+ 
+-class Partitioner:
++class Partitioner(metaclass=ABCMeta):
+     """
+     **Partitioner factory**
+ 
+@@ -38,42 +36,36 @@ class Partitioner:
+     :param object storage_provider: Instance of class based on DeviceProvider
+     :param int start_sector: sector number
+     """
+-    def __new__(self, table_type, storage_provider, start_sector=None):
+-        host_architecture = Defaults.get_platform_name()
+-        if host_architecture == 'x86_64':
+-            if table_type == 'gpt':
+-                return PartitionerGpt(storage_provider, start_sector)
+-            elif table_type == 'msdos':
+-                return PartitionerMsDos(storage_provider, start_sector)
+-
+-        elif host_architecture == 'ix86':
+-            if table_type == 'msdos':
+-                return PartitionerMsDos(storage_provider, start_sector)
+-
+-        elif 'ppc64' in host_architecture:
+-            if table_type == 'gpt':
+-                return PartitionerGpt(storage_provider, start_sector)
+-            elif table_type == 'msdos':
+-                return PartitionerMsDos(storage_provider, start_sector)
+-
+-        elif 's390' in host_architecture:
+-            if table_type == 'dasd':
+-                if start_sector:
+-                    log.warning(
+-                        'disk_start_sector value is ignored '
+-                        'for dasd partitions'
+-                    )
+-                return PartitionerDasd(storage_provider)
+-            elif table_type == 'msdos':
+-                return PartitionerMsDos(storage_provider, start_sector)
+-
+-        elif 'arm' in host_architecture or host_architecture == 'aarch64':
+-            if table_type == 'gpt':
+-                return PartitionerGpt(storage_provider, start_sector)
+-            elif table_type == 'msdos':
+-                return PartitionerMsDos(storage_provider, start_sector)
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
+ 
+-        raise KiwiPartitionerSetupError(
+-            'Support for partitioner on %s architecture not implemented' %
+-            host_architecture
+-        )
++    @staticmethod
++    def new(
++        table_type: str, storage_provider: object,
++        start_sector: int=None  # noqa: E252
++    ):
++        name_map = {
++            'msdos': 'MsDos',
++            'gpt': 'Gpt',
++            'dasd': 'Dasd'
++        }
++        try:
++            partitioner = importlib.import_module(
++                'kiwi.partitioner.{0}'.format(table_type)
++            )
++            module_name = 'Partitioner{0}'.format(name_map[table_type])
++            if table_type == 'dasd' and start_sector:
++                log.warning(
++                    'disk start_sector value is ignored for dasd partitions'
++                )
++                start_sector = None
++            return partitioner.__dict__[module_name](
++                storage_provider, start_sector
++            )
++        except Exception as issue:
++            raise KiwiPartitionerSetupError(
++                'Support for {0} partitioner not implemented: {1}'.format(
++                    table_type, issue
++                )
++            )
+diff --git a/kiwi/repository/__init__.py b/kiwi/repository/__init__.py
+index bdff94f2fc..0fcd6692e9 100644
+--- a/kiwi/repository/__init__.py
++++ b/kiwi/repository/__init__.py
+@@ -15,18 +15,18 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.repository.zypper import RepositoryZypper
+-from kiwi.repository.apt import RepositoryApt
+-from kiwi.repository.dnf import RepositoryDnf
+-from kiwi.repository.pacman import RepositoryPacman
+-
+-from kiwi.exceptions import (
+-    KiwiRepositorySetupError
++import importlib
++from typing import List
++from abc import (
++    ABCMeta,
++    abstractmethod
+ )
+ 
++# project
++from kiwi.exceptions import KiwiRepositorySetupError
++
+ 
+-class Repository:
++class Repository(metaclass=ABCMeta):
+     """
+     **Repository factory**
+ 
+@@ -37,17 +37,34 @@ class Repository:
+ 
+     :raises KiwiRepositorySetupError: if package_manager is not supported
+     """
+-    def __new__(self, root_bind, package_manager, custom_args=None):
+-        if package_manager == 'zypper':
+-            return RepositoryZypper(root_bind, custom_args)
+-        elif package_manager == 'dnf' or package_manager == 'yum' or package_manager == 'microdnf':
+-            return RepositoryDnf(root_bind, custom_args)
+-        elif package_manager == 'apt-get':
+-            return RepositoryApt(root_bind, custom_args)
+-        elif package_manager == 'pacman':
+-            return RepositoryPacman(root_bind, custom_args)
+-        else:
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(
++        root_bind: object, package_manager: str,
++        custom_args: List=None  # noqa: E252
++    ):
++        name_map = {
++            'zypper': ['zypper', 'Zypper'],
++            'dnf': ['dnf', 'Dnf'],
++            'yum': ['dnf', 'Dnf'],
++            'microdnf': ['dnf', 'Dnf'],
++            'apt-get': ['apt', 'Apt'],
++            'pacman': ['pacman', 'Pacman']
++        }
++        try:
++            repository = importlib.import_module(
++                'kiwi.repository.{0}'.format(name_map[package_manager][0])
++            )
++            module_name = 'Repository{0}'.format(name_map[package_manager][1])
++            return repository.__dict__[module_name](
++                root_bind, custom_args
++            )
++        except Exception as issue:
+             raise KiwiRepositorySetupError(
+-                'Support for %s repository manager not implemented' %
+-                package_manager
++                'Support for {0} repository not implemented: {1}'.format(
++                    package_manager, issue
++                )
+             )
+diff --git a/kiwi/storage/disk.py b/kiwi/storage/disk.py
+index ad463a3dab..549db27880 100644
+--- a/kiwi/storage/disk.py
++++ b/kiwi/storage/disk.py
+@@ -48,7 +48,7 @@ def __init__(self, table_type, storage_provider, start_sector=None):
+         self.partition_id_map = {}
+         self.is_mapped = False
+ 
+-        self.partitioner = Partitioner(
++        self.partitioner = Partitioner.new(
+             table_type, storage_provider, start_sector
+         )
+ 
+diff --git a/kiwi/system/prepare.py b/kiwi/system/prepare.py
+index fab99520d8..710f7deb8c 100644
+--- a/kiwi/system/prepare.py
++++ b/kiwi/system/prepare.py
+@@ -122,7 +122,7 @@ def setup_repositories(self, clear_cache=False, signing_keys=None):
+             repository_options.append(
+                 '_install_langs%{0}'.format(':'.join(rpm_locale_list))
+             )
+-        repo = Repository(
++        repo = Repository.new(
+             self.root_bind, package_manager, repository_options
+         )
+         repo.setup_package_database_configuration()
+@@ -341,7 +341,7 @@ def pinch_system(self, manager=None, force=False):
+                 if manager is None:
+                     package_manager = self.xml_state.get_package_manager()
+                     manager = PackageManager.new(
+-                        Repository(self.root_bind, package_manager),
++                        Repository.new(self.root_bind, package_manager),
+                         package_manager
+                     )
+                 self.delete_packages(
+@@ -460,7 +460,7 @@ def clean_package_manager_leftovers(self):
+         """
+         package_manager = self.xml_state.get_package_manager()
+         manager = PackageManager.new(
+-            Repository(self.root_bind, package_manager),
++            Repository.new(self.root_bind, package_manager),
+             package_manager
+         )
+         manager.clean_leftovers()
+diff --git a/kiwi/system/setup.py b/kiwi/system/setup.py
+index e00530c650..a3e1b07424 100644
+--- a/kiwi/system/setup.py
++++ b/kiwi/system/setup.py
+@@ -137,7 +137,7 @@ def import_repositories_marked_as_imageinclude(self):
+         root = RootInit(
+             root_dir=self.root_dir, allow_existing=True
+         )
+-        repo = Repository(
++        repo = Repository.new(
+             RootBind(root), self.xml_state.get_package_manager()
+         )
+         repo.use_default_location()
+diff --git a/kiwi/tasks/image_resize.py b/kiwi/tasks/image_resize.py
+index bddb3b26a7..de113a3960 100644
+--- a/kiwi/tasks/image_resize.py
++++ b/kiwi/tasks/image_resize.py
+@@ -122,7 +122,7 @@ def process(self):
+         firmware = FirmWare(self.xml_state)
+         loop_provider = LoopDevice(image_format.diskname)
+         loop_provider.create(overwrite=False)
+-        partitioner = Partitioner(
++        partitioner = Partitioner.new(
+             firmware.get_partition_table_type(), loop_provider
+         )
+         partitioner.resize_table()
+diff --git a/test/unit/builder/disk_test.py b/test/unit/builder/disk_test.py
+index 85d370ec87..e5203be330 100644
+--- a/test/unit/builder/disk_test.py
++++ b/test/unit/builder/disk_test.py
+@@ -870,7 +870,7 @@ def test_create_disk_spare_part_requested(
+         )
+ 
+     @patch('kiwi.builder.disk.LoopDevice')
+-    @patch('kiwi.builder.disk.Partitioner')
++    @patch('kiwi.builder.disk.Partitioner.new')
+     @patch('kiwi.builder.disk.DiskFormat.new')
+     def test_append_unpartitioned_space(
+         self, mock_diskformat, mock_partitioner, mock_loopdevice
+diff --git a/test/unit/partitioner/init_test.py b/test/unit/partitioner/init_test.py
+index 018270e2d5..289ac20cd3 100644
+--- a/test/unit/partitioner/init_test.py
++++ b/test/unit/partitioner/init_test.py
+@@ -16,105 +16,35 @@ class TestPartitioner:
+     def inject_fixtures(self, caplog):
+         self._caplog = caplog
+ 
+-    @patch('platform.machine')
+-    def test_partitioner_not_implemented(self, mock_machine):
+-        mock_machine.return_value = 'x86_64'
++    def test_partitioner_not_implemented(self):
+         with raises(KiwiPartitionerSetupError):
+-            Partitioner('foo', Mock())
++            Partitioner.new('foo', Mock())
+ 
+-    @patch('platform.machine')
+-    def test_partitioner_for_arch_not_implemented(self, mock_machine):
+-        mock_machine.return_value = 'some-arch'
++    def test_partitioner_for_arch_not_implemented(self):
+         with raises(KiwiPartitionerSetupError):
+-            Partitioner('foo', Mock())
++            Partitioner.new('foo', Mock())
+ 
+-    @patch('kiwi.partitioner.PartitionerGpt')
+-    @patch('platform.machine')
+-    def test_partitioner_x86_64_gpt(self, mock_machine, mock_gpt):
+-        mock_machine.return_value = 'x86_64'
++    @patch('kiwi.partitioner.gpt.PartitionerGpt')
++    def test_partitioner_gpt(self, mock_gpt):
+         storage_provider = Mock()
+-        Partitioner('gpt', storage_provider)
++        Partitioner.new('gpt', storage_provider)
+         mock_gpt.assert_called_once_with(storage_provider, None)
+ 
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_x86_64_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 'x86_64'
++    @patch('kiwi.partitioner.msdos.PartitionerMsDos')
++    def test_partitioner_msdos(self, mock_dos):
+         storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
++        Partitioner.new('msdos', storage_provider)
+         mock_dos.assert_called_once_with(storage_provider, None)
+ 
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_i686_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 'i686'
++    @patch('kiwi.partitioner.dasd.PartitionerDasd')
++    def test_partitioner_dasd(self, mock_dasd):
+         storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
+-        mock_dos.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_i586_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 'i586'
+-        storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
+-        mock_dos.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerDasd')
+-    @patch('platform.machine')
+-    def test_partitioner_s390_dasd(self, mock_machine, mock_dasd):
+-        mock_machine.return_value = 's390'
+-        storage_provider = Mock()
+-        Partitioner('dasd', storage_provider)
+-        mock_dasd.assert_called_once_with(storage_provider)
++        Partitioner.new('dasd', storage_provider)
++        mock_dasd.assert_called_once_with(storage_provider, None)
+ 
+-    @patch('kiwi.partitioner.PartitionerDasd')
+-    @patch('platform.machine')
+-    def test_partitioner_s390_dasd_with_custom_start_sector(
+-        self, mock_machine, mock_dasd
+-    ):
+-        mock_machine.return_value = 's390'
++    @patch('kiwi.partitioner.dasd.PartitionerDasd')
++    def test_partitioner_dasd_with_custom_start_sector(self, mock_dasd):
+         storage_provider = Mock()
+         with self._caplog.at_level(logging.WARNING):
+-            Partitioner('dasd', storage_provider, 4096)
+-            mock_dasd.assert_called_once_with(storage_provider)
+-
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_s390_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 's390'
+-        storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
+-        mock_dos.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_ppc_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 'ppc64'
+-        storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
+-        mock_dos.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerGpt')
+-    @patch('platform.machine')
+-    def test_partitioner_ppc_gpt(self, mock_machine, mock_gpt):
+-        mock_machine.return_value = 'ppc64'
+-        storage_provider = Mock()
+-        Partitioner('gpt', storage_provider)
+-        mock_gpt.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerGpt')
+-    @patch('platform.machine')
+-    def test_partitioner_arm_gpt(self, mock_machine, mock_gpt):
+-        mock_machine.return_value = 'aarch64'
+-        storage_provider = Mock()
+-        Partitioner('gpt', storage_provider)
+-        mock_gpt.assert_called_once_with(storage_provider, None)
+-
+-    @patch('kiwi.partitioner.PartitionerMsDos')
+-    @patch('platform.machine')
+-    def test_partitioner_arm_msdos(self, mock_machine, mock_dos):
+-        mock_machine.return_value = 'armv7l'
+-        storage_provider = Mock()
+-        Partitioner('msdos', storage_provider)
+-        mock_dos.assert_called_once_with(storage_provider, None)
++            Partitioner.new('dasd', storage_provider, 4096)
++            mock_dasd.assert_called_once_with(storage_provider, None)
+diff --git a/test/unit/repository/init_test.py b/test/unit/repository/init_test.py
+index 8299fa0109..36098d13f1 100644
+--- a/test/unit/repository/init_test.py
++++ b/test/unit/repository/init_test.py
+@@ -9,34 +9,40 @@
+ class TestRepository:
+     def test_repository_manager_not_implemented(self):
+         with raises(KiwiRepositorySetupError):
+-            Repository('root_bind', 'ms-manager')
++            Repository.new('root_bind', 'ms-manager')
+ 
+-    @patch('kiwi.repository.RepositoryZypper')
++    @patch('kiwi.repository.zypper.RepositoryZypper')
+     def test_repository_zypper(self, mock_manager):
+         root_bind = mock.Mock()
+-        Repository(root_bind, 'zypper')
++        Repository.new(root_bind, 'zypper')
+         mock_manager.assert_called_once_with(root_bind, None)
+ 
+-    @patch('kiwi.repository.RepositoryDnf')
++    @patch('kiwi.repository.dnf.RepositoryDnf')
+     def test_repository_dnf(self, mock_manager):
+         root_bind = mock.Mock()
+-        Repository(root_bind, 'dnf')
++        Repository.new(root_bind, 'dnf')
+         mock_manager.assert_called_once_with(root_bind, None)
+ 
+-    @patch('kiwi.repository.RepositoryDnf')
++    @patch('kiwi.repository.dnf.RepositoryDnf')
++    def test_repository_microdnf(self, mock_manager):
++        root_bind = mock.Mock()
++        Repository.new(root_bind, 'microdnf')
++        mock_manager.assert_called_once_with(root_bind, None)
++
++    @patch('kiwi.repository.dnf.RepositoryDnf')
+     def test_repository_yum(self, mock_manager):
+         root_bind = mock.Mock()
+-        Repository(root_bind, 'yum')
++        Repository.new(root_bind, 'yum')
+         mock_manager.assert_called_once_with(root_bind, None)
+ 
+-    @patch('kiwi.repository.RepositoryApt')
++    @patch('kiwi.repository.apt.RepositoryApt')
+     def test_repository_apt(self, mock_manager):
+         root_bind = mock.Mock()
+-        Repository(root_bind, 'apt-get')
++        Repository.new(root_bind, 'apt-get')
+         mock_manager.assert_called_once_with(root_bind, None)
+ 
+-    @patch('kiwi.repository.RepositoryPacman')
++    @patch('kiwi.repository.pacman.RepositoryPacman')
+     def test_repository_pacman(self, mock_manager):
+         root_bind = mock.Mock()
+-        Repository(root_bind, 'pacman')
++        Repository.new(root_bind, 'pacman')
+         mock_manager.assert_called_once_with(root_bind, None)
+diff --git a/test/unit/storage/disk_test.py b/test/unit/storage/disk_test.py
+index 9880a056e8..9b75b831b9 100644
+--- a/test/unit/storage/disk_test.py
++++ b/test/unit/storage/disk_test.py
+@@ -14,7 +14,7 @@ class TestDisk:
+     def inject_fixtures(self, caplog):
+         self._caplog = caplog
+ 
+-    @patch('kiwi.storage.disk.Partitioner')
++    @patch('kiwi.storage.disk.Partitioner.new')
+     def setup(self, mock_partitioner):
+         self.tempfile = mock.Mock()
+         self.tempfile.name = 'tempfile'
+diff --git a/test/unit/system/prepare_test.py b/test/unit/system/prepare_test.py
+index 390f49f611..5d04d7ef87 100644
+--- a/test/unit/system/prepare_test.py
++++ b/test/unit/system/prepare_test.py
+@@ -164,7 +164,7 @@ def test_delete_packages_raises(self, mock_poll):
+         with raises(KiwiSystemDeletePackagesFailed):
+             self.system.delete_packages(self.manager, ['package'])
+ 
+-    @patch('kiwi.system.prepare.Repository')
++    @patch('kiwi.system.prepare.Repository.new')
+     @patch('kiwi.system.prepare.Uri')
+     @patch('kiwi.system.prepare.PackageManager')
+     @patch('kiwi.xml_state.XMLState.get_package_manager')
+@@ -235,7 +235,7 @@ def test_setup_repositories(
+             ['key-file-a.asc', 'key-file-b.asc']
+         )
+ 
+-    @patch('kiwi.system.prepare.Repository')
++    @patch('kiwi.system.prepare.Repository.new')
+     @patch('kiwi.system.prepare.Uri')
+     @patch('kiwi.system.prepare.PackageManager')
+     @patch('kiwi.xml_state.XMLState.get_package_manager')
+@@ -376,7 +376,7 @@ def test_pinch_system_raises(self, mock_poll):
+         self.manager.process_delete_requests.assert_called_once_with(False)
+ 
+     @patch('kiwi.package_manager.zypper.PackageManagerZypper.process_delete_requests')
+-    @patch('kiwi.system.prepare.Repository')
++    @patch('kiwi.system.prepare.Repository.new')
+     @patch('kiwi.system.prepare.CommandProcess.poll_show_progress')
+     def test_pinch_system_without_manager(
+         self, mock_poll, mock_repo, mock_requests
+@@ -394,11 +394,11 @@ def test_destructor(self):
+         self.system.__del__()
+         self.system.root_bind.cleanup.assert_called_once_with()
+ 
+-    @patch('kiwi.system.prepare.Repository')
+-    @patch('kiwi.system.prepare.PackageManager')
++    @patch('kiwi.system.prepare.Repository.new')
++    @patch('kiwi.system.prepare.PackageManager.new')
+     def test_clean_package_manager_leftovers(self, mock_manager, mock_repo):
+         manager = Mock()
+-        mock_manager.new.return_value = manager
++        mock_manager.return_value = manager
+         self.system.clean_package_manager_leftovers()
+         manager.clean_leftovers.assert_called_once_with()
+ 
+diff --git a/test/unit/system/setup_test.py b/test/unit/system/setup_test.py
+index 210fd6c8df..19589bc175 100644
+--- a/test/unit/system/setup_test.py
++++ b/test/unit/system/setup_test.py
+@@ -1231,7 +1231,7 @@ def test_set_selinux_file_contexts(self, mock_command):
+             ]
+         )
+ 
+-    @patch('kiwi.system.setup.Repository')
++    @patch('kiwi.system.setup.Repository.new')
+     @patch('kiwi.system.setup.Uri')
+     def test_import_repositories_marked_as_imageinclude(
+         self, mock_uri, mock_repo
+diff --git a/test/unit/tasks/image_resize_test.py b/test/unit/tasks/image_resize_test.py
+index 4f6b14c1a1..95f204dfca 100644
+--- a/test/unit/tasks/image_resize_test.py
++++ b/test/unit/tasks/image_resize_test.py
+@@ -41,7 +41,6 @@ def setup(self):
+         self.firmware.get_partition_table_type = Mock(
+             return_value='gpt'
+         )
+-        self.partitioner = Mock()
+         self.loop_provider = Mock()
+         kiwi.tasks.image_resize.FirmWare = Mock(
+             return_value=self.firmware
+@@ -49,9 +48,6 @@ def setup(self):
+         kiwi.tasks.image_resize.LoopDevice = Mock(
+             return_value=self.loop_provider
+         )
+-        kiwi.tasks.image_resize.Partitioner = Mock(
+-            return_value=self.partitioner
+-        )
+ 
+         self.task = ImageResizeTask()
+ 
+@@ -93,7 +89,10 @@ def test_process_unsupported_size_format(self, mock_DiskFormat):
+             self.task.process()
+ 
+     @patch('kiwi.tasks.image_resize.DiskFormat.new')
+-    def test_process_image_resize_gb(self, mock_DiskFormat):
++    @patch('kiwi.tasks.image_resize.Partitioner.new')
++    def test_process_image_resize_gb(self, mock_Partitioner, mock_DiskFormat):
++        partitioner = Mock()
++        mock_Partitioner.return_value = partitioner
+         image_format = Mock()
+         image_format.resize_raw_disk.return_value = True
+         mock_DiskFormat.return_value = image_format
+@@ -101,14 +100,17 @@ def test_process_image_resize_gb(self, mock_DiskFormat):
+         self.task.command_args['resize'] = True
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+-        self.partitioner.resize_table.assert_called_once_with()
++        partitioner.resize_table.assert_called_once_with()
+         image_format.resize_raw_disk.assert_called_once_with(
+             42 * 1024 * 1024 * 1024
+         )
+         image_format.create_image_format.assert_called_once_with()
+ 
+     @patch('kiwi.tasks.image_resize.DiskFormat.new')
+-    def test_process_image_resize_mb(self, mock_DiskFormat):
++    @patch('kiwi.tasks.image_resize.Partitioner.new')
++    def test_process_image_resize_mb(self, mock_Partitioner, mock_DiskFormat):
++        partitioner = Mock()
++        mock_Partitioner.return_value = partitioner
+         image_format = Mock()
+         image_format.resize_raw_disk.return_value = True
+         mock_DiskFormat.return_value = image_format
+@@ -117,14 +119,19 @@ def test_process_image_resize_mb(self, mock_DiskFormat):
+         self.task.command_args['--size'] = '42m'
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+-        self.partitioner.resize_table.assert_called_once_with()
++        partitioner.resize_table.assert_called_once_with()
+         image_format.resize_raw_disk.assert_called_once_with(
+             42 * 1024 * 1024
+         )
+         image_format.create_image_format.assert_called_once_with()
+ 
+     @patch('kiwi.tasks.image_resize.DiskFormat.new')
+-    def test_process_image_resize_bytes(self, mock_DiskFormat):
++    @patch('kiwi.tasks.image_resize.Partitioner.new')
++    def test_process_image_resize_bytes(
++        self, mock_Partitioner, mock_DiskFormat
++    ):
++        partitioner = Mock()
++        mock_Partitioner.return_value = partitioner
+         image_format = Mock()
+         image_format.resize_raw_disk.return_value = True
+         mock_DiskFormat.return_value = image_format
+@@ -133,14 +140,19 @@ def test_process_image_resize_bytes(self, mock_DiskFormat):
+         self.task.command_args['--size'] = '42'
+         self.task.process()
+         self.loop_provider.create.assert_called_once_with(overwrite=False)
+-        self.partitioner.resize_table.assert_called_once_with()
++        partitioner.resize_table.assert_called_once_with()
+         image_format.resize_raw_disk.assert_called_once_with(
+             42
+         )
+         image_format.create_image_format.assert_called_once_with()
+ 
+     @patch('kiwi.tasks.image_resize.DiskFormat.new')
+-    def test_process_image_resize_not_needed(self, mock_DiskFormat):
++    @patch('kiwi.tasks.image_resize.Partitioner.new')
++    def test_process_image_resize_not_needed(
++        self, mock_Partitioner, mock_DiskFormat
++    ):
++        partitioner = Mock()
++        mock_Partitioner.return_value = partitioner
+         image_format = Mock()
+         image_format.resize_raw_disk.return_value = False
+         mock_DiskFormat.return_value = image_format
+@@ -150,7 +162,7 @@ def test_process_image_resize_not_needed(self, mock_DiskFormat):
+         with self._caplog.at_level(logging.INFO):
+             self.task.process()
+             self.loop_provider.create.assert_called_once_with(overwrite=False)
+-            self.partitioner.resize_table.assert_called_once_with()
++            partitioner.resize_table.assert_called_once_with()
+             image_format.resize_raw_disk.assert_called_once_with(
+                 42
+             )
