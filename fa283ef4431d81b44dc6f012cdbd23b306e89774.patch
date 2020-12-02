@@ -1,0 +1,117 @@
+diff --git a/dracut/modules.d/90kiwi-dump/kiwi-mount-ramdisk.sh b/dracut/modules.d/90kiwi-dump/kiwi-mount-ramdisk.sh
+new file mode 100644
+index 0000000000..0467a99fd8
+--- /dev/null
++++ b/dracut/modules.d/90kiwi-dump/kiwi-mount-ramdisk.sh
+@@ -0,0 +1,38 @@
++#!/bin/bash
++type setup_debug >/dev/null 2>&1 || . /lib/kiwi-lib.sh
++type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
++
++#======================================
++# Functions
++#--------------------------------------
++function mount_ramdisk {
++    local root_dev
++    local boot_options
++
++    boot_options="/config.bootoptions"
++
++    if [ ! -e "${boot_options}" ]; then
++        die "Missing ${boot_options} file"
++    fi
++
++    root_dev=$(
++        while read -r -d ' ' opt; do echo "${opt}";done < "${boot_options}" |\
++        grep root= | cut -f2- -d=
++    )
++
++    if [ -z "${root_dev}" ]; then
++        die "'root=' argument not found in ${boot_options}"
++    fi
++    
++    mount --options defaults "${root_dev}" /sysroot
++}
++
++#======================================
++# Mount ramdisk root in /sysroot
++#--------------------------------------
++
++setup_debug
++
++if getargbool 0 rd.kiwi.ramdisk; then
++    mount_ramdisk
++fi
+diff --git a/dracut/modules.d/90kiwi-dump/kiwi-ramdisk-deployment-generator.sh b/dracut/modules.d/90kiwi-dump/kiwi-ramdisk-deployment-generator.sh
+deleted file mode 100755
+index 9158f1307f..0000000000
+--- a/dracut/modules.d/90kiwi-dump/kiwi-ramdisk-deployment-generator.sh
++++ /dev/null
+@@ -1,37 +0,0 @@
+-#!/bin/bash
+-
+-type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
+-
+-GENERATOR_DIR="$1"
+-[ -z "${GENERATOR_DIR}" ] && exit 1
+-[ -d "${GENERATOR_DIR}" ] || mkdir -p "${GENERATOR_DIR}"
+-
+-[ -e /config.bootoptions ] || exit 1
+-
+-root_uuid=$(
+-    while read -r -d ' ' opt; do echo "${opt}";done < /config.bootoptions |\
+-    grep root= | cut -f2- -d=
+-)
+-
+-[ -z "${root_uuid}" ] && exit 1
+-
+-{
+-    echo "[Unit]"
+-    echo "Before=initrd-root-fs.target"
+-    echo "[Mount]"
+-    echo "Where=/sysroot"
+-    echo "What=${root_uuid}"
+-    _dev=RamDisk_rootfs
+-} > "$GENERATOR_DIR"/sysroot.mount
+-
+-if [ ! -e "$GENERATOR_DIR/initrd-root-fs.target.requires/sysroot.mount" ]; then
+-    mkdir -p "$GENERATOR_DIR"/initrd-root-fs.target.requires
+-    ln -s "$GENERATOR_DIR"/sysroot.mount \
+-        "$GENERATOR_DIR"/initrd-root-fs.target.requires/sysroot.mount
+-fi
+-
+-mkdir -p "$GENERATOR_DIR/$_dev.device.d"
+-{
+-    echo "[Unit]"
+-    echo "JobTimeoutSec=60"
+-} > "$GENERATOR_DIR/$_dev.device.d/timeout.conf"
+diff --git a/dracut/modules.d/90kiwi-dump/module-setup.sh b/dracut/modules.d/90kiwi-dump/module-setup.sh
+index 33adad05fa..d0f6bee915 100755
+--- a/dracut/modules.d/90kiwi-dump/module-setup.sh
++++ b/dracut/modules.d/90kiwi-dump/module-setup.sh
+@@ -30,9 +30,7 @@ install() {
+ 
+     inst_hook cmdline 30 "${moddir}/parse-kiwi-install.sh"
+     inst_hook pre-mount 30 "${moddir}/kiwi-dump-image.sh"
+-
+-    inst_script "${moddir}/kiwi-ramdisk-deployment-generator.sh" \
+-        "${systemdutildir}/system-generators/dracut-kiwi-ramdisk-generator"
++    inst_hook mount 30 "${moddir}/kiwi-mount-ramdisk.sh" 
+ 
+     inst_rules 60-cdrom_id.rules
+     dracut_need_initqueue
+diff --git a/dracut/modules.d/99kiwi-dump-reboot/kiwi-dump-reboot-system.sh b/dracut/modules.d/99kiwi-dump-reboot/kiwi-dump-reboot-system.sh
+index 2dc76eeb7e..fc38deb0fc 100755
+--- a/dracut/modules.d/99kiwi-dump-reboot/kiwi-dump-reboot-system.sh
++++ b/dracut/modules.d/99kiwi-dump-reboot/kiwi-dump-reboot-system.sh
+@@ -40,8 +40,8 @@ function boot_installed_system {
+ if getargbool 0 rd.kiwi.ramdisk; then
+     # For ramdisk deployment a kexec boot is not possible as it
+     # will wipe the contents of the ramdisk. Therefore we prepare
+-    # the switch_root from this deployment initrd. Also see the
+-    # unit generator: dracut-kiwi-ramdisk-generator
++    # the switch_root from this deployment initrd. See
++    # kiwi-mount-ramdisk.sh mount hook for further details.
+     image_target=$(get_selected_disk)
+     kpartx -s -a "${image_target}"
+ else
