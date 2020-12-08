@@ -1,0 +1,21 @@
+From 0d473758bc13a622b9b0aa57c7474fea4de5574d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20Sch=C3=A4fer?= <ms@suse.de>
+Date: Sun, 8 Nov 2020 20:43:35 +0100
+Subject: [PATCH] Added universal box to build status helper
+
+---
+ helper/build_status.sh | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/helper/build_status.sh b/helper/build_status.sh
+index c740700076..177aaf34fa 100755
+--- a/helper/build_status.sh
++++ b/helper/build_status.sh
+@@ -4,6 +4,7 @@ for project in \
+     Virtualization:Appliances:SelfContained:fedora \
+     Virtualization:Appliances:SelfContained:suse \
+     Virtualization:Appliances:SelfContained:ubuntu \
++    Virtualization:Appliances:SelfContained:universal \
+     Virtualization:Appliances:Images:Testing_x86:suse \
+     Virtualization:Appliances:Images:Testing_x86:centos \
+     Virtualization:Appliances:Images:Testing_x86:fedora \
