@@ -1,0 +1,42 @@
+diff --git a/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh b/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
+index d900e76cb6..a95f3c41ca 100755
+--- a/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
++++ b/dracut/modules.d/90kiwi-dump/kiwi-dump-image.sh
+@@ -53,6 +53,7 @@ function get_disk_list {
+         disk_id=${kiwi_devicepersistency}
+     fi
+     max_disk=0
++    kiwi_oemmultipath_scan=$(bool "${kiwi_oemmultipath_scan}")
+     kiwi_oem_maxdisk=$(getarg rd.kiwi.oem.maxdisk=)
+     if [ -n "${kiwi_oem_maxdisk}" ]; then
+         max_disk=$(binsize_to_bytesize "${kiwi_oem_maxdisk}") || max_disk=0
+@@ -71,7 +72,7 @@ function get_disk_list {
+         # target should be a ramdisk on request. Thus instruct
+         # lsblk to list only ramdisk devices (Major=1)
+         blk_opts="-I 1 ${blk_opts}"
+-    elif [ -n "${kiwi_oemmultipath_scan}" ];then
++    elif [ "${kiwi_oemmultipath_scan}" = "true" ];then
+         scan_multipath_devices
+     fi
+     for disk_meta in $(
+diff --git a/dracut/modules.d/99kiwi-lib/kiwi-lib.sh b/dracut/modules.d/99kiwi-lib/kiwi-lib.sh
+index 66d06d93ba..ad847cf31d 100644
+--- a/dracut/modules.d/99kiwi-lib/kiwi-lib.sh
++++ b/dracut/modules.d/99kiwi-lib/kiwi-lib.sh
+@@ -50,6 +50,7 @@ function lookup_disk_device_from_root {
+     local root_device=${root#block:}
+     local disk_device
+     local wwn
++    kiwi_oemmultipath_scan=$(bool "${kiwi_oemmultipath_scan}")
+     if [ -z "${root_device}" ];then
+         die "No root device found"
+     fi
+@@ -62,7 +63,7 @@ function lookup_disk_device_from_root {
+     ); do
+         # If multipath is requested, set the disk_device to the
+         # multipath mapped device
+-        if [ -n "${kiwi_oemmultipath_scan}" ];then
++        if [ "${kiwi_oemmultipath_scan}" = "true" ];then
+             disk_device=$(get_mapped_multipath_disk "${disk_device}")
+         fi
+         # Check if root_device is managed by mdadm and that the md raid
