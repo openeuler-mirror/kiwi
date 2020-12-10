@@ -1,0 +1,39 @@
+diff --git a/build-tests/s390/sle15/test-image-disk/appliance.kiwi b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+index a3863a9e4f..f15b8f3c99 100644
+--- a/build-tests/s390/sle15/test-image-disk/appliance.kiwi
++++ b/build-tests/s390/sle15/test-image-disk/appliance.kiwi
+@@ -10,7 +10,8 @@
+     </description>
+     <profiles>
+         <profile name="Virtual" description="Image for use with kvm"/>
+-        <profile name="Physical" description="Image for physical storage disk CDL mode"/>
++        <profile name="Physical_DASD" description="Image for physical storage disk CDL mode"/>
++        <profile name="Physical_FBA" description="Image for physical storage disk FBA mode"/>
+     </profiles>
+     <preferences>
+         <version>1.15.1</version>
+@@ -29,7 +30,7 @@
+             <bootloader name="grub2_s390x_emu" console="serial"/>
+         </type>
+     </preferences>
+-    <preferences profiles="Physical">
++    <preferences profiles="Physical_DASD">
+         <type image="oem" filesystem="xfs" kernelcmdline="console=ttyS0 dasd_mod.dasd=ipldev" bootpartition="true" bootfilesystem="ext3" target_blocksize="4096">
+             <bootloader name="grub2_s390x_emu" console="serial" targettype="CDL"/>
+             <oemconfig>
+@@ -38,6 +39,15 @@
+             </oemconfig>
+         </type>
+     </preferences>
++    <preferences profiles="Physical_FBA">
++        <type image="oem" filesystem="xfs" kernelcmdline="console=ttyS0" bootpartition="true" bootfilesystem="ext3">
++            <bootloader name="grub2_s390x_emu" console="serial" targettype="FBA"/>
++            <oemconfig>
++                <oem-swap>true</oem-swap>
++                <oem-swapsize>512</oem-swapsize>
++            </oemconfig>
++        </type>
++    </preferences>
+     <users>
+         <user password="$1$wYJUgpM5$RXMMeASDc035eX.NbYWFl0" home="/root" name="root" groups="root"/>
+     </users>
