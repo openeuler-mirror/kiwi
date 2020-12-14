@@ -1,0 +1,28 @@
+diff --git a/kiwi/system/root_init.py b/kiwi/system/root_init.py
+index 5de7dd9f0e..64373f2a23 100644
+--- a/kiwi/system/root_init.py
++++ b/kiwi/system/root_init.py
+@@ -130,8 +130,7 @@ def _create_base_links(self, root):
+             ('/proc/self/fd', '%s/dev/fd'),
+             ('fd/2', '%s/dev/stderr'),
+             ('fd/0', '%s/dev/stdin'),
+-            ('fd/1', '%s/dev/stdout'),
+-            ('/run', '%s/var/run')
++            ('fd/1', '%s/dev/stdout')
+         )
+         for src, target in base_system_links:
+             os.symlink(src, target % root, )
+diff --git a/test/unit/system/root_init_test.py b/test/unit/system/root_init_test.py
+index 3d6f0082bb..08ec4912b4 100644
+--- a/test/unit/system/root_init_test.py
++++ b/test/unit/system/root_init_test.py
+@@ -96,8 +96,7 @@ def path_exists(self):
+             call('/proc/self/fd', 'tmpdir/dev/fd'),
+             call('fd/2', 'tmpdir/dev/stderr'),
+             call('fd/0', 'tmpdir/dev/stdin'),
+-            call('fd/1', 'tmpdir/dev/stdout'),
+-            call('/run', 'tmpdir/var/run')
++            call('fd/1', 'tmpdir/dev/stdout')
+         ]
+         mock_data_sync.assert_called_once_with(
+             'tmpdir/', 'root_dir'
