@@ -1,0 +1,385 @@
+diff --git a/doc/source/image_description/elements.rst b/doc/source/image_description/elements.rst
+index 44d2e356d7..f072147772 100644
+--- a/doc/source/image_description/elements.rst
++++ b/doc/source/image_description/elements.rst
+@@ -768,6 +768,13 @@ sourcetype="baseurl|metalink|mirrorlist"
+   list, the configured package manager needs to be setup appropriately.
+   By default the source is expected to be a simple repository baseurl.
+ 
++use_for_bootstrap="true|false"
++  Used for Debian (apt) based repositories only. It specifies whether
++  this repository should be the one used for bootstrapping or not.
++  It is set to 'false' by default. Only a single repository is allowed
++  to be used for bootstrapping, if no repository is set for the bootstrap
++  the last one in the description XML is used.
++  
+ <repository><source>
+ ~~~~~~~~~~~~~~~~~~~~
+ The location of a repository is specified by the path attribute of the
+diff --git a/kiwi/repository/apt.py b/kiwi/repository/apt.py
+index b475276e67..a5f2391d7f 100644
+--- a/kiwi/repository/apt.py
++++ b/kiwi/repository/apt.py
+@@ -69,6 +69,7 @@ def post_init(self, custom_args=None):
+ 
+         self.distribution = None
+         self.distribution_path = None
++        self.debootstrap_repo_set = False
+         self.repo_names = []
+         self.components = []
+ 
+@@ -135,7 +136,7 @@ def add_repo(
+         prio=None, dist=None, components=None,
+         user=None, secret=None, credentials_file=None,
+         repo_gpgcheck=None, pkg_gpgcheck=None,
+-        sourcetype=None
++        sourcetype=None, use_for_bootstrap=False
+     ):
+         """
+         Add apt_get repository
+@@ -152,6 +153,8 @@ def add_repo(
+         :param bool repo_gpgcheck: enable repository signature validation
+         :param bool pkg_gpgcheck: unused
+         :param str sourcetype: unused
++        :param bool use_for_bootstrap: use this repository for the
++            debootstrap call
+         """
+         list_file = '/'.join(
+             [self.shared_apt_get_dir['sources-dir'], name + '.list']
+@@ -185,8 +188,10 @@ def add_repo(
+             else:
+                 # create a debian distributon repository setup for the
+                 # specified distributon name and components
+-                self.distribution = dist
+-                self.distribution_path = uri
++                if not self.debootstrap_repo_set:
++                    self.distribution = dist
++                    self.distribution_path = uri
++                    self.debootstrap_repo_set = use_for_bootstrap
+                 repo_line += ' {0} {1}\n'.format(dist, components)
+             repo.write(repo_line)
+         if prio:
+diff --git a/kiwi/repository/base.py b/kiwi/repository/base.py
+index 4709429217..1a7d06a628 100644
+--- a/kiwi/repository/base.py
++++ b/kiwi/repository/base.py
+@@ -64,7 +64,7 @@ def runtime_config(self):
+     def add_repo(
+         self, name, uri, repo_type, prio, dist, components,
+         user, secret, credentials_file, repo_gpgcheck, pkg_gpgcheck,
+-        sourcetype
++        sourcetype, use_for_bootstrap=False
+     ):
+         """
+         Add repository
+@@ -83,6 +83,7 @@ def add_repo(
+         :param bool repo_gpgcheck: unused
+         :param bool pkg_gpgcheck: unused
+         :param str sourcetype: unused
++        :param bool use_for_bootstrap: unused
+         """
+         raise NotImplementedError
+ 
+diff --git a/kiwi/repository/dnf.py b/kiwi/repository/dnf.py
+index 39b5bfc15e..2a44467e32 100644
+--- a/kiwi/repository/dnf.py
++++ b/kiwi/repository/dnf.py
+@@ -157,7 +157,7 @@ def add_repo(
+         prio=None, dist=None, components=None,
+         user=None, secret=None, credentials_file=None,
+         repo_gpgcheck=None, pkg_gpgcheck=None,
+-        sourcetype=None
++        sourcetype=None, use_for_bootstrap=False
+     ):
+         """
+         Add dnf repository
+@@ -175,6 +175,7 @@ def add_repo(
+         :param bool pkg_gpgcheck: enable package signature validation
+         :param str sourcetype:
+             source type, one of 'baseurl', 'metalink' or 'mirrorlist'
++        :param bool use_for_bootstrap: unused
+         """
+         repo_file = self.shared_dnf_dir['reposd-dir'] + '/' + name + '.repo'
+         self.repo_names.append(name + '.repo')
+diff --git a/kiwi/repository/pacman.py b/kiwi/repository/pacman.py
+index 0cfe3d3dc0..8e100cb460 100644
+--- a/kiwi/repository/pacman.py
++++ b/kiwi/repository/pacman.py
+@@ -109,7 +109,7 @@ def add_repo(
+         prio=None, dist=None, components=None,
+         user=None, secret=None, credentials_file=None,
+         repo_gpgcheck=None, pkg_gpgcheck=None,
+-        sourcetype=None
++        sourcetype=None, use_for_bootstrap=False
+     ):
+         """
+         Add pacman repository
+@@ -126,6 +126,7 @@ def add_repo(
+         :param bool repo_gpgcheck: enable database signature validation
+         :param bool pkg_gpgcheck: enable package signature validation
+         :param str sourcetype: unused
++        :param bool use_for_bootstrap: unused
+         """
+         repo_file = '{0}/{1}.repo'.format(
+             self.shared_pacman_dir['repos-dir'], name
+diff --git a/kiwi/repository/zypper.py b/kiwi/repository/zypper.py
+index 409729384e..4922db5a80 100644
+--- a/kiwi/repository/zypper.py
++++ b/kiwi/repository/zypper.py
+@@ -235,7 +235,7 @@ def add_repo(
+         prio=None, dist=None, components=None,
+         user=None, secret=None, credentials_file=None,
+         repo_gpgcheck=None, pkg_gpgcheck=None,
+-        sourcetype=None
++        sourcetype=None, use_for_bootstrap=False
+     ):
+         """
+         Add zypper repository
+@@ -252,6 +252,7 @@ def add_repo(
+         :param bool repo_gpgcheck: enable repository signature validation
+         :param bool pkg_gpgcheck: enable package signature validation
+         :param str sourcetype: unused
++        :param boot use_for_bootstrap: unused
+         """
+         if credentials_file:
+             repo_secret = os.sep.join(
+diff --git a/kiwi/schema/kiwi.rnc b/kiwi/schema/kiwi.rnc
+index 35f8750cb1..2b2b4c1b1e 100644
+--- a/kiwi/schema/kiwi.rnc
++++ b/kiwi/schema/kiwi.rnc
+@@ -906,6 +906,18 @@ div {
+ # common element <repository>
+ #
+ div {
++    sch:pattern [
++        abstract = "true"
++        id = "repo_type"
++        sch:rule [
++            context = "repository[@$attr]"
++            sch:assert [
++                test = "contains('$types', @type)"
++                "$attr attribute is only available for the following "
++                "repository types: $types"
++            ]
++        ]
++    ]
+     k.repository.profiles.attribute = k.profiles.attribute
+     k.repository.type.attribute =
+         ## Type of repository
+@@ -970,6 +982,25 @@ div {
+         attribute sourcetype {
+             "baseurl" | "metalink" | "mirrorlist"
+         }
++    k.repository.use_for_bootstrap.attribute =
++        ## Specify whether this repository should be the one used for
++        ## bootstrapping or not. False by default. Only a single repository
++        ## is allowed to be used for bootstrapping. If none is set the
++        ## last one is picked.
++        attribute use_for_bootstrap { xsd:boolean }
++        >> sch:pattern [ id = "use_for_bootstrap" is-a = "repo_type"
++            sch:param [ name = "attr" value = "use_for_bootstrap" ]
++            sch:param [ name = "types" value = "apt-deb" ]
++        ]
++        >> sch:pattern [ id = "single_deboostrap_repo"
++            sch:rule [ context = "image"
++                sch:assert [ 
++                    test = "count(repository[@use_for_bootstrap='true'])<=1"
++                    "There can only be a single repository set for "
++                    "bootstrap ('use_for_bootstrap' attribute)"
++                ] 
++            ]
++        ]
+     k.repository.attlist =
+         k.repository.type.attribute? &
+         k.repository.profiles.attribute? &
+@@ -985,7 +1016,8 @@ div {
+         k.repository.package_gpgcheck.attribute? &
+         k.repository.priority.attribute? &
+         k.repository.password.attribute? &
+-        k.repository.username.attribute?
++        k.repository.username.attribute? &
++        k.repository.use_for_bootstrap.attribute?
+     k.repository =
+         ## The Name of the Repository
+         element repository {
+diff --git a/kiwi/schema/kiwi.rng b/kiwi/schema/kiwi.rng
+index 3d2a12595c..ab4554aba8 100644
+--- a/kiwi/schema/kiwi.rng
++++ b/kiwi/schema/kiwi.rng
+@@ -1398,6 +1398,11 @@ definition can be composed by other existing profiles.</a:documentation>
+     
+   -->
+   <div>
++    <sch:pattern abstract="true" id="repo_type">
++      <sch:rule context="repository[@$attr]">
++        <sch:assert test="contains('$types', @type)">$attr attribute is only available for the following repository types: $types</sch:assert>
++      </sch:rule>
++    </sch:pattern>
+     <define name="k.repository.profiles.attribute">
+       <ref name="k.profiles.attribute"/>
+     </define>
+@@ -1502,6 +1507,24 @@ be a simple repository url</a:documentation>
+         </choice>
+       </attribute>
+     </define>
++    <define name="k.repository.use_for_bootstrap.attribute">
++      <attribute name="use_for_bootstrap">
++        <a:documentation>Specify whether this repository should be the one used for
++bootstrapping or not. False by default. Only a single repository
++is allowed to be used for bootstrapping. If none is set the
++last one is picked.</a:documentation>
++        <data type="boolean"/>
++      </attribute>
++      <sch:pattern id="use_for_bootstrap" is-a="repo_type">
++        <sch:param name="attr" value="use_for_bootstrap"/>
++        <sch:param name="types" value="apt-deb"/>
++      </sch:pattern>
++      <sch:pattern id="single_deboostrap_repo">
++        <sch:rule context="image">
++          <sch:assert test="count(repository[@use_for_bootstrap='true'])&lt;=1">There can only be a single repository set for bootstrap ('use_for_bootstrap' attribute)</sch:assert>
++        </sch:rule>
++      </sch:pattern>
++    </define>
+     <define name="k.repository.attlist">
+       <interleave>
+         <optional>
+@@ -1543,6 +1566,9 @@ be a simple repository url</a:documentation>
+         <optional>
+           <ref name="k.repository.username.attribute"/>
+         </optional>
++        <optional>
++          <ref name="k.repository.use_for_bootstrap.attribute"/>
++        </optional>
+       </interleave>
+     </define>
+     <define name="k.repository">
+diff --git a/kiwi/system/prepare.py b/kiwi/system/prepare.py
+index 710f7deb8c..84fe1532b0 100644
+--- a/kiwi/system/prepare.py
++++ b/kiwi/system/prepare.py
+@@ -140,6 +140,8 @@ def setup_repositories(self, clear_cache=False, signing_keys=None):
+             repo_repository_gpgcheck = xml_repo.get_repository_gpgcheck()
+             repo_package_gpgcheck = xml_repo.get_package_gpgcheck()
+             repo_sourcetype = xml_repo.get_sourcetype()
++            repo_use_for_bootstrap = \
++                True if xml_repo.get_use_for_bootstrap() else False
+             log.info('Setting up repository %s', repo_source)
+             log.info('--> Type: {0}'.format(repo_type))
+             if repo_sourcetype:
+@@ -171,7 +173,7 @@ def setup_repositories(self, clear_cache=False, signing_keys=None):
+                 repo_type, repo_priority, repo_dist, repo_components,
+                 repo_user, repo_secret, uri.credentials_file_name(),
+                 repo_repository_gpgcheck, repo_package_gpgcheck,
+-                repo_sourcetype
++                repo_sourcetype, repo_use_for_bootstrap
+             )
+             if clear_cache:
+                 repo.delete_repo_cache(repo_alias)
+diff --git a/kiwi/xml_parse.py b/kiwi/xml_parse.py
+index 3f103b7655..e231b162ca 100644
+--- a/kiwi/xml_parse.py
++++ b/kiwi/xml_parse.py
+@@ -3,7 +3,7 @@
+ 
+ #
+ # Generated  by generateDS.py version 2.29.24.
+-# Python 3.6.10 (default, Jan 16 2020, 09:12:04) [GCC]
++# Python 3.6.12 (default, Dec 02 2020, 09:44:23) [GCC]
+ #
+ # Command line options:
+ #   ('-f', '')
+@@ -16,7 +16,7 @@
+ #   kiwi/schema/kiwi_for_generateDS.xsd
+ #
+ # Command line:
+-#   /home/ms/Project/kiwi/.tox/3.6/bin/generateDS.py -f --external-encoding="utf-8" --no-dates --no-warnings -o "kiwi/xml_parse.py" kiwi/schema/kiwi_for_generateDS.xsd
++#   /home/david/work/kiwi/.tox/3/bin/generateDS.py -f --external-encoding="utf-8" --no-dates --no-warnings -o "kiwi/xml_parse.py" kiwi/schema/kiwi_for_generateDS.xsd
+ #
+ # Current working directory (os.getcwd()):
+ #   kiwi
+@@ -2065,7 +2065,7 @@ class repository(k_source):
+     """The Name of the Repository"""
+     subclass = None
+     superclass = k_source
+-    def __init__(self, source=None, type_=None, profiles=None, alias=None, sourcetype=None, components=None, distribution=None, imageinclude=None, imageonly=None, repository_gpgcheck=None, package_gpgcheck=None, priority=None, password=None, username=None):
++    def __init__(self, source=None, type_=None, profiles=None, alias=None, sourcetype=None, components=None, distribution=None, imageinclude=None, imageonly=None, repository_gpgcheck=None, package_gpgcheck=None, priority=None, password=None, username=None, use_for_bootstrap=None):
+         self.original_tagname_ = None
+         super(repository, self).__init__(source, )
+         self.type_ = _cast(None, type_)
+@@ -2081,6 +2081,7 @@ def __init__(self, source=None, type_=None, profiles=None, alias=None, sourcetyp
+         self.priority = _cast(int, priority)
+         self.password = _cast(None, password)
+         self.username = _cast(None, username)
++        self.use_for_bootstrap = _cast(bool, use_for_bootstrap)
+     def factory(*args_, **kwargs_):
+         if CurrentSubclassModule_ is not None:
+             subclass = getSubclassFromModule_(
+@@ -2118,6 +2119,8 @@ def get_password(self): return self.password
+     def set_password(self, password): self.password = password
+     def get_username(self): return self.username
+     def set_username(self, username): self.username = username
++    def get_use_for_bootstrap(self): return self.use_for_bootstrap
++    def set_use_for_bootstrap(self, use_for_bootstrap): self.use_for_bootstrap = use_for_bootstrap
+     def hasContent_(self):
+         if (
+             super(repository, self).hasContent_()
+@@ -2187,6 +2190,9 @@ def exportAttributes(self, outfile, level, already_processed, namespaceprefix_='
+         if self.username is not None and 'username' not in already_processed:
+             already_processed.add('username')
+             outfile.write(' username=%s' % (self.gds_encode(self.gds_format_string(quote_attrib(self.username), input_name='username')), ))
++        if self.use_for_bootstrap is not None and 'use_for_bootstrap' not in already_processed:
++            already_processed.add('use_for_bootstrap')
++            outfile.write(' use_for_bootstrap="%s"' % self.gds_format_boolean(self.use_for_bootstrap, input_name='use_for_bootstrap'))
+     def exportChildren(self, outfile, level, namespaceprefix_='', name_='repository', fromsubclass_=False, pretty_print=True):
+         super(repository, self).exportChildren(outfile, level, namespaceprefix_, name_, True, pretty_print=pretty_print)
+     def build(self, node):
+@@ -2274,6 +2280,15 @@ def buildAttributes(self, node, attrs, already_processed):
+         if value is not None and 'username' not in already_processed:
+             already_processed.add('username')
+             self.username = value
++        value = find_attr_value_('use_for_bootstrap', node)
++        if value is not None and 'use_for_bootstrap' not in already_processed:
++            already_processed.add('use_for_bootstrap')
++            if value in ('true', '1'):
++                self.use_for_bootstrap = True
++            elif value in ('false', '0'):
++                self.use_for_bootstrap = False
++            else:
++                raise_parse_error(node, 'Bad boolean attribute')
+         super(repository, self).buildAttributes(node, attrs, already_processed)
+     def buildChildren(self, child_, node, nodeName_, fromsubclass_=False):
+         super(repository, self).buildChildren(child_, node, nodeName_, True)
+diff --git a/test/unit/repository/base_test.py b/test/unit/repository/base_test.py
+index c6ea0e177f..2ddaacd34c 100644
+--- a/test/unit/repository/base_test.py
++++ b/test/unit/repository/base_test.py
+@@ -22,8 +22,8 @@ def test_runtime_config(self):
+     def test_add_repo(self):
+         with raises(NotImplementedError):
+             self.repo.add_repo(
+-                'name', 'uri', 'type', 'prio', 'dist', ['components'],
+-                'user', 'secret', 'credentials-file', False, False, False
++                'name', 'uri', 'type', 'prio', 'dist', ['components'], 'user',
++                'secret', 'credentials-file', False, False, False, False
+             )
+ 
+     def test_setup_package_database_configuration(self):
+diff --git a/test/unit/system/prepare_test.py b/test/unit/system/prepare_test.py
+index 5d04d7ef87..3b9bbc0809 100644
+--- a/test/unit/system/prepare_test.py
++++ b/test/unit/system/prepare_test.py
+@@ -218,12 +218,12 @@ def test_setup_repositories(
+             call(
+                 'uri-alias', 'uri', None, 42,
+                 None, None, None, None, 'credentials-file', None, None,
+-                'baseurl'
++                'baseurl', False
+             ),
+             call(
+                 'uri-alias', 'uri', 'rpm-md', None,
+                 None, None, None, None, 'credentials-file', None, None,
+-                None
++                None, False
+             )
+         ]
+         assert repo.delete_repo_cache.call_args_list == [
