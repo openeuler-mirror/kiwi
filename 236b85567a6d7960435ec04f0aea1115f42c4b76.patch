@@ -1,0 +1,409 @@
+diff --git a/doc/source/building_images/build_expandable_disk.rst b/doc/source/building_images/build_expandable_disk.rst
+index 724493b813..09a7fe8c5e 100644
+--- a/doc/source/building_images/build_expandable_disk.rst
++++ b/doc/source/building_images/build_expandable_disk.rst
+@@ -355,6 +355,14 @@ oemconfig.oem-swap Element
+   swap partition will be created. This value is represented
+   by the ``kiwi_oemswap`` variable in the initrd
+ 
++oemconfig.oem-swapname Element
++  Specify the name of the swap space. By default the name is set
++  to ``LVSwap``. The default already indicates that this setting
++  is only useful in combination with the LVM volume manager. In
++  this case the swapspace is setup as a volume in the volume
++  group and any volume needs a name. The name set here is used
++  to give the swap volume a name.
++
+ oemconfig.oem-swapsize Element
+   Set the size of the swap partition. If a swap partition is to be
+   created and the size of the swap partition is not specified with
+diff --git a/kiwi/runtime_checker.py b/kiwi/runtime_checker.py
+index 8b4a3054a8..75db14867b 100644
+--- a/kiwi/runtime_checker.py
++++ b/kiwi/runtime_checker.py
+@@ -138,11 +138,41 @@ def check_volume_label_used_with_lvm(self):
+         volume_management = self.xml_state.get_volume_management()
+         if volume_management != 'lvm':
+             for volume in self.xml_state.get_volumes():
+-                if volume.label and volume.name != 'LVSwap':
++                if volume.label and volume.label != 'SWAP':
+                     raise KiwiRuntimeError(
+                         message.format(volume_management)
+                     )
+ 
++    def check_swap_name_used_with_lvm(self):
++        """
++        The optional oem-swapname is only effective if used together
++        with the LVM volume manager. A name for the swap space can
++        only be set if it is created as a LVM volume. In any other
++        case the name does not apply to the system
++        """
++        message = dedent('''\n
++             Specified swap space name: {0} will not be used
++
++             The specified oem-swapname is used without the LVM volume
++             manager. This means the swap space will be created as simple
++             partition for which no name assignment can take place.
++             The name specified in oem-swapname is used to give the
++             LVM swap volume a name. Outside of LVM the setting is
++             meaningless and should be removed.
++
++             Please delete the following setting from your image
++             description:
++
++             <oem-swapname>{0}</oem-swapname>
++        ''')
++        volume_management = self.xml_state.get_volume_management()
++        if volume_management != 'lvm':
++            oemconfig = self.xml_state.get_build_type_oemconfig_section()
++            if oemconfig and oemconfig.get_oem_swapname():
++                raise KiwiRuntimeError(
++                    message.format(oemconfig.get_oem_swapname()[0])
++                )
++
+     def check_volume_setup_defines_reserved_labels(self):
+         message = dedent('''\n
+             Reserved label name used in LVM volume setup
+@@ -158,7 +188,11 @@ def check_volume_setup_defines_reserved_labels(self):
+         volume_management = self.xml_state.get_volume_management()
+         if volume_management == 'lvm':
+             for volume in self.xml_state.get_volumes():
+-                if volume.name != 'LVSwap':
++                # A swap volume is created implicitly if oem-swap is
++                # requested. This volume detected via realpath set to
++                # swap is skipped from the reserved label check as it
++                # intentionally uses the reserved label named SWAP
++                if volume.realpath != 'swap':
+                     if volume.label and volume.label in reserved_labels:
+                         raise KiwiRuntimeError(
+                             message.format(
+diff --git a/kiwi/schema/kiwi.rnc b/kiwi/schema/kiwi.rnc
+index 2b2b4c1b1e..eabc94ad16 100644
+--- a/kiwi/schema/kiwi.rnc
++++ b/kiwi/schema/kiwi.rnc
+@@ -725,6 +725,24 @@ div {
+         }
+ }
+ 
++#==========================================
++# common element <oem-swapname>
++#
++div {
++    k.oem-swapname.attlist = empty
++    k.oem-swapname =
++        ## For oem images: Set the name of the swap space
++        ## The name of the swap space is used only if the
++        ## image is configured to use the LVM volume manager.
++        ## In this case swap is a volume and the volume takes
++        ## a name. In any other case the given name will have
++        ## no effect.
++        element oem-swapname {
++            k.oem-swapname.attlist,
++            text
++        }
++}
++
+ #==========================================
+ # common element <oem-systemsize>
+ #
+@@ -2614,6 +2632,7 @@ div {
+             k.oem-skip-verify? &
+             k.oem-swap? &
+             k.oem-swapsize? &
++            k.oem-swapname? &
+             k.oem-systemsize? &
+             k.oem-unattended? &
+             k.oem-unattended-id?
+diff --git a/kiwi/schema/kiwi.rng b/kiwi/schema/kiwi.rng
+index ab4554aba8..1c8a299570 100644
+--- a/kiwi/schema/kiwi.rng
++++ b/kiwi/schema/kiwi.rng
+@@ -1112,6 +1112,28 @@ partition in MB</a:documentation>
+       </element>
+     </define>
+   </div>
++  <!--
++    ==========================================
++    common element <oem-swapname>
++    
++  -->
++  <div>
++    <define name="k.oem-swapname.attlist">
++      <empty/>
++    </define>
++    <define name="k.oem-swapname">
++      <element name="oem-swapname">
++        <a:documentation>For oem images: Set the name of the swap space
++The name of the swap space is used only if the
++image is configured to use the LVM volume manager.
++In this case swap is a volume and the volume takes
++a name. In any other case the given name will have
++no effect.</a:documentation>
++        <ref name="k.oem-swapname.attlist"/>
++        <text/>
++      </element>
++    </define>
++  </div>
+   <!--
+     ==========================================
+     common element <oem-systemsize>
+@@ -3981,6 +4003,9 @@ and setup the system disk.</a:documentation>
+           <optional>
+             <ref name="k.oem-swapsize"/>
+           </optional>
++          <optional>
++            <ref name="k.oem-swapname"/>
++          </optional>
+           <optional>
+             <ref name="k.oem-systemsize"/>
+           </optional>
+diff --git a/kiwi/tasks/base.py b/kiwi/tasks/base.py
+index 6f5a463073..efe82baa24 100644
+--- a/kiwi/tasks/base.py
++++ b/kiwi/tasks/base.py
+@@ -81,6 +81,7 @@ def __init__(self, should_perform_task_setup=True):
+             'check_volume_setup_defines_multiple_fullsize_volumes': [],
+             'check_volume_setup_has_no_root_definition': [],
+             'check_volume_label_used_with_lvm': [],
++            'check_swap_name_used_with_lvm': [],
+             'check_xen_uniquely_setup_as_server_or_guest': [],
+             'check_mediacheck_installed': [],
+             'check_dracut_module_for_live_iso_in_package_list': [],
+diff --git a/kiwi/volume_manager/lvm.py b/kiwi/volume_manager/lvm.py
+index 2f48e9539d..d160084918 100644
+--- a/kiwi/volume_manager/lvm.py
++++ b/kiwi/volume_manager/lvm.py
+@@ -75,8 +75,8 @@ def get_device(self):
+                 # root partition device from the disk. Therefore use
+                 # the same key to put them on the same level
+                 volume_name = 'root'
+-            if volume_name == 'LVSwap':
+-                # LVSwap volume device takes precedence over the
++            if self._is_swap_volume(volume_name):
++                # swap volume device takes precedence over the
+                 # swap partition device from the disk. Therefore use
+                 # the same key to put them on the same level
+                 volume_name = 'swap'
+@@ -176,7 +176,7 @@ def create_volumes(self, filesystem_name):
+                 self.root_dir, volume
+             )
+             self._add_to_volume_map(volume.name)
+-            if volume.name != 'LVSwap':
++            if volume.label != 'SWAP':
+                 self._create_filesystem(
+                     volume.name, volume.label, filesystem_name
+                 )
+@@ -348,6 +348,11 @@ def _is_root_volume(self, name):
+             if name in volume.name and volume.is_root_volume:
+                 return True
+ 
++    def _is_swap_volume(self, name):
++        for volume in self.volumes:
++            if name in volume.name and volume.label == 'SWAP':
++                return True
++
+     def __del__(self):
+         if self.volume_group:
+             log.info('Cleaning up %s instance', type(self).__name__)
+diff --git a/kiwi/xml_parse.py b/kiwi/xml_parse.py
+index e231b162ca..60463df922 100644
+--- a/kiwi/xml_parse.py
++++ b/kiwi/xml_parse.py
+@@ -5858,7 +5858,7 @@ class oemconfig(GeneratedsSuper):
+     which are used to repartition and setup the system disk."""
+     subclass = None
+     superclass = None
+-    def __init__(self, oem_boot_title=None, oem_bootwait=None, oem_resize=None, oem_resize_once=None, oem_device_filter=None, oem_nic_filter=None, oem_inplace_recovery=None, oem_kiwi_initrd=None, oem_multipath_scan=None, oem_vmcp_parmfile=None, oem_partition_install=None, oem_reboot=None, oem_reboot_interactive=None, oem_recovery=None, oem_recoveryID=None, oem_recovery_part_size=None, oem_shutdown=None, oem_shutdown_interactive=None, oem_silent_boot=None, oem_silent_install=None, oem_silent_verify=None, oem_skip_verify=None, oem_swap=None, oem_swapsize=None, oem_systemsize=None, oem_unattended=None, oem_unattended_id=None):
++    def __init__(self, oem_boot_title=None, oem_bootwait=None, oem_resize=None, oem_resize_once=None, oem_device_filter=None, oem_nic_filter=None, oem_inplace_recovery=None, oem_kiwi_initrd=None, oem_multipath_scan=None, oem_vmcp_parmfile=None, oem_partition_install=None, oem_reboot=None, oem_reboot_interactive=None, oem_recovery=None, oem_recoveryID=None, oem_recovery_part_size=None, oem_shutdown=None, oem_shutdown_interactive=None, oem_silent_boot=None, oem_silent_install=None, oem_silent_verify=None, oem_skip_verify=None, oem_swap=None, oem_swapsize=None, oem_swapname=None, oem_systemsize=None, oem_unattended=None, oem_unattended_id=None):
+         self.original_tagname_ = None
+         if oem_boot_title is None:
+             self.oem_boot_title = []
+@@ -5956,6 +5956,10 @@ def __init__(self, oem_boot_title=None, oem_bootwait=None, oem_resize=None, oem_
+             self.oem_swapsize = []
+         else:
+             self.oem_swapsize = oem_swapsize
++        if oem_swapname is None:
++            self.oem_swapname = []
++        else:
++            self.oem_swapname = oem_swapname
+         if oem_systemsize is None:
+             self.oem_systemsize = []
+         else:
+@@ -6099,6 +6103,11 @@ def set_oem_swapsize(self, oem_swapsize): self.oem_swapsize = oem_swapsize
+     def add_oem_swapsize(self, value): self.oem_swapsize.append(value)
+     def insert_oem_swapsize_at(self, index, value): self.oem_swapsize.insert(index, value)
+     def replace_oem_swapsize_at(self, index, value): self.oem_swapsize[index] = value
++    def get_oem_swapname(self): return self.oem_swapname
++    def set_oem_swapname(self, oem_swapname): self.oem_swapname = oem_swapname
++    def add_oem_swapname(self, value): self.oem_swapname.append(value)
++    def insert_oem_swapname_at(self, index, value): self.oem_swapname.insert(index, value)
++    def replace_oem_swapname_at(self, index, value): self.oem_swapname[index] = value
+     def get_oem_systemsize(self): return self.oem_systemsize
+     def set_oem_systemsize(self, oem_systemsize): self.oem_systemsize = oem_systemsize
+     def add_oem_systemsize(self, value): self.oem_systemsize.append(value)
+@@ -6140,6 +6149,7 @@ def hasContent_(self):
+             self.oem_skip_verify or
+             self.oem_swap or
+             self.oem_swapsize or
++            self.oem_swapname or
+             self.oem_systemsize or
+             self.oem_unattended or
+             self.oem_unattended_id
+@@ -6247,6 +6257,9 @@ def exportChildren(self, outfile, level, namespaceprefix_='', name_='oemconfig',
+         for oem_swapsize_ in self.oem_swapsize:
+             showIndent(outfile, level, pretty_print)
+             outfile.write('<oem-swapsize>%s</oem-swapsize>%s' % (self.gds_format_integer(oem_swapsize_, input_name='oem-swapsize'), eol_))
++        for oem_swapname_ in self.oem_swapname:
++            showIndent(outfile, level, pretty_print)
++            outfile.write('<oem-swapname>%s</oem-swapname>%s' % (self.gds_encode(self.gds_format_string(quote_xml(oem_swapname_), input_name='oem-swapname')), eol_))
+         for oem_systemsize_ in self.oem_systemsize:
+             showIndent(outfile, level, pretty_print)
+             outfile.write('<oem-systemsize>%s</oem-systemsize>%s' % (self.gds_format_integer(oem_systemsize_, input_name='oem-systemsize'), eol_))
+@@ -6482,6 +6495,10 @@ def buildChildren(self, child_, node, nodeName_, fromsubclass_=False):
+                 raise_parse_error(child_, 'requires nonNegativeInteger')
+             ival_ = self.gds_validate_integer(ival_, node, 'oem_swapsize')
+             self.oem_swapsize.append(ival_)
++        elif nodeName_ == 'oem-swapname':
++            oem_swapname_ = child_.text
++            oem_swapname_ = self.gds_validate_string(oem_swapname_, node, 'oem_swapname')
++            self.oem_swapname.append(oem_swapname_)
+         elif nodeName_ == 'oem-systemsize' and child_.text:
+             sval_ = child_.text
+             try:
+diff --git a/kiwi/xml_state.py b/kiwi/xml_state.py
+index d9b660d743..2395bc1b5f 100644
+--- a/kiwi/xml_state.py
++++ b/kiwi/xml_state.py
+@@ -913,6 +913,28 @@ def get_oemconfig_swap_mbytes(self):
+                 else:
+                     return Defaults.get_swapsize_mbytes()
+ 
++    def get_oemconfig_swap_name(self):
++        """
++        Return the swap space name
++
++        Operates on the value of oem-swapname and if set
++        returns the configured name or the default name: LVSwap
++
++        The name of the swap space is used only if the
++        image is configured to use the LVM volume manager.
++        In this case swap is a volume and the volume takes
++        a name. In any other case the given name will have
++        no effect.
++
++        :return: Content of <oem-swapname> section value or default
++
++        :rtype: str
++        """
++        oemconfig = self.get_build_type_oemconfig_section()
++        if oemconfig and oemconfig.get_oem_swapname():
++            return oemconfig.get_oem_swapname()[0]
++        return 'LVSwap'
++
+     def get_build_type_containerconfig_section(self):
+         """
+         First containerconfig section from the build type section
+@@ -1236,6 +1258,7 @@ def get_volumes(self):
+         volume_type_list = []
+         systemdisk_section = self.get_build_type_system_disk_section()
+         swap_mbytes = self.get_oemconfig_swap_mbytes()
++        swap_name = self.get_oemconfig_swap_name()
+         if not systemdisk_section:
+             return volume_type_list
+ 
+@@ -1358,7 +1381,7 @@ def get_volumes(self):
+         if swap_mbytes and self.get_volume_management() == 'lvm':
+             volume_type_list.append(
+                 volume_type(
+-                    name='LVSwap',
++                    name=swap_name,
+                     size='size:{0}'.format(swap_mbytes),
+                     fullsize=False,
+                     mountpoint=None,
+diff --git a/test/data/example_config.xml b/test/data/example_config.xml
+index 384b5ca4c2..66c24886d0 100644
+--- a/test/data/example_config.xml
++++ b/test/data/example_config.xml
+@@ -66,6 +66,7 @@
+                 <oem-systemsize>2048</oem-systemsize>
+                 <oem-swap>true</oem-swap>
+                 <oem-swapsize>42</oem-swapsize>
++                <oem-swapname>swap</oem-swapname>
+                 <oem-recovery>false</oem-recovery>
+             </oemconfig>
+             <vagrantconfig provider="libvirt" virtualsize="42"/>
+diff --git a/test/data/example_runtime_checker_config.xml b/test/data/example_runtime_checker_config.xml
+index 0b78f813af..a2ccabf871 100644
+--- a/test/data/example_runtime_checker_config.xml
++++ b/test/data/example_runtime_checker_config.xml
+@@ -130,6 +130,7 @@
+                 <oem-systemsize>2048</oem-systemsize>
+                 <oem-swap>true</oem-swap>
+                 <oem-recovery>false</oem-recovery>
++                <oem-swapname>swap</oem-swapname>
+             </oemconfig>
+         </type>
+         <type image="iso" mediacheck="true" firmware="bios"/>
+diff --git a/test/unit/runtime_checker_test.py b/test/unit/runtime_checker_test.py
+index 8ddfbd008e..b5da9ef44f 100644
+--- a/test/unit/runtime_checker_test.py
++++ b/test/unit/runtime_checker_test.py
+@@ -296,6 +296,14 @@ def test_check_volume_label_used_with_lvm(self):
+         with raises(KiwiRuntimeError):
+             self.runtime_checker.check_volume_label_used_with_lvm()
+ 
++    def test_check_swap_name_used_with_lvm(self):
++        xml_state = XMLState(
++            self.description.load(), ['vmxFlavour'], 'oem'
++        )
++        runtime_checker = RuntimeChecker(xml_state)
++        with raises(KiwiRuntimeError):
++            runtime_checker.check_swap_name_used_with_lvm()
++
+     def test_check_preferences_data_no_version(self):
+         xml_state = XMLState(
+             self.description.load(), ['docker'], 'docker'
+diff --git a/test/unit/tasks/system_build_test.py b/test/unit/tasks/system_build_test.py
+index a54b2f157f..a38bb514ae 100644
+--- a/test/unit/tasks/system_build_test.py
++++ b/test/unit/tasks/system_build_test.py
+@@ -120,6 +120,8 @@ def test_process_system_build(self, mock_log):
+             assert_called_once_with()
+         self.runtime_checker.\
+             check_volume_label_used_with_lvm.assert_called_once_with()
++        self.runtime_checker.\
++            check_swap_name_used_with_lvm.assert_called_once_with()
+         self.runtime_checker.\
+             check_xen_uniquely_setup_as_server_or_guest.\
+             assert_called_once_with()
+diff --git a/test/unit/tasks/system_prepare_test.py b/test/unit/tasks/system_prepare_test.py
+index 11768a1103..f06874c499 100644
+--- a/test/unit/tasks/system_prepare_test.py
++++ b/test/unit/tasks/system_prepare_test.py
+@@ -109,6 +109,8 @@ def test_process_system_prepare(self):
+             check_volume_setup_has_no_root_definition.assert_called_once_with()
+         self.runtime_checker.\
+             check_volume_label_used_with_lvm.assert_called_once_with()
++        self.runtime_checker.\
++            check_swap_name_used_with_lvm.assert_called_once_with()
+         self.runtime_checker.\
+             check_xen_uniquely_setup_as_server_or_guest.\
+             assert_called_once_with()
+diff --git a/test/unit/xml_state_test.py b/test/unit/xml_state_test.py
+index 92a8e1b9af..a5e87b24cd 100644
+--- a/test/unit/xml_state_test.py
++++ b/test/unit/xml_state_test.py
+@@ -516,6 +516,13 @@ def test_get_oemconfig_swap_mbytes(self):
+         state = XMLState(xml_data, ['vmxFlavour'], 'oem')
+         assert state.get_oemconfig_swap_mbytes() == 42
+ 
++    def test_get_oemconfig_swap_name(self):
++        xml_data = self.description.load()
++        state = XMLState(xml_data, ['containerFlavour'], 'docker')
++        assert state.get_oemconfig_swap_name() == 'LVSwap'
++        state = XMLState(xml_data, ['vmxFlavour'], 'oem')
++        assert state.get_oemconfig_swap_name() == 'swap'
++
+     def test_get_oemconfig_swap_mbytes_default(self):
+         description = XMLDescription(
+             '../data/example_btrfs_config.xml'
