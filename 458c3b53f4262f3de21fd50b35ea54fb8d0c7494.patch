@@ -1,0 +1,184 @@
+diff --git a/doc/source/concept_and_workflow/shell_scripts.rst b/doc/source/concept_and_workflow/shell_scripts.rst
+index edd3569246..7906f55e87 100644
+--- a/doc/source/concept_and_workflow/shell_scripts.rst
++++ b/doc/source/concept_and_workflow/shell_scripts.rst
+@@ -86,8 +86,9 @@ Functions
+ ^^^^^^^^^
+ 
+ The :file:`.kconfig` file provides a common set of functions.  Functions
+-specific to SUSE Linux begin with the name ``suse``, functions applicable
+-to all Linux distributions start with the name ``base``.
++specific to SUSE Linux Enterprise and openSUSE begin with the name
++``suse``, functions applicable to all Linux distributions start with the
++name ``base``.
+ 
+ The following list describes all functions provided by :file:`.kconfig`:
+ 
+@@ -204,9 +205,18 @@ suseSetupProductInformation
+   and installs all product specific packages. This function fails
+   when :command:`zypper` is not the appliances package manager.
+ 
++baseVagrantSetup
++  Configures the image to work as a vagrant box by performing the following
++  changes:
++  - add the ``vagrant`` user to :file:`/etc/sudoers` or
++    :file:`/etc/sudoers.d/vagrant`
++  - insert the insecure vagrant ssh key, apply recommended ssh settings and
++    start the ssh daemon
++  - create the default shared folder :file:`/vagrant`
++
+ Debug {message}
+   Helper function to print the supplied message if the variable DEBUG is
+-  set to 1.
++  set to 1 (it is off by default).
+ 
+ Echo {echo commandline}
+   Helper function to print a message to the controlling terminal.
+diff --git a/doc/source/working_with_images/disk_setup_for_vagrant.rst b/doc/source/working_with_images/disk_setup_for_vagrant.rst
+index 612f596f68..9f9afea655 100644
+--- a/doc/source/working_with_images/disk_setup_for_vagrant.rst
++++ b/doc/source/working_with_images/disk_setup_for_vagrant.rst
+@@ -116,72 +116,32 @@ steps are required:
+    This adds the **vagrant** user to the system and applies the
+    name of the user as the password for login.
+ 
+-5. Integrate public SSH key
+-
+-   Vagrant requires an insecure public key pair [#f1]_ to be added to the
+-   authorized keys for the user ``vagrant`` so that Vagrant itself can
+-   connect to the box via ssh.
+-   The key can be obtained from `GitHub
+-   <https://github.com/hashicorp/vagrant/blob/master/keys/vagrant.pub>`_
+-   and should be inserted into the file
+-   :file:`home/vagrant/.ssh/authorized_keys`, which can be added as an
+-   overlay file into the image description.
+-
+-   Keep in mind to set the file system permissions of
+-   :file:`home/vagrant/.ssh/` and :file:`home/vagrant/.ssh/authorized_keys`
+-   correctly, otherwise Vagrant will not be able to connect to your
+-   box. The following snippet can be added to :file:`config.sh`:
++5. Configure SSH, the default shared folder and sudo permissions
+ 
+-   .. code:: bash
+-
+-      chmod 0600 /home/vagrant/.ssh/authorized_keys
+-      chown -R vagrant:vagrant /home/vagrant/
+-
+-6. Create the default shared folder
+-
+-   Vagrant boxes usually provide a default shared folder under
+-   :file:`/vagrant`. Consider adding this empty folder to your overlay
+-   files and ensure that the user ``vagrant`` has write permissions to
+-   it.
++   Vagrant expects that it can login as the user ``vagrant`` using an
++   insecure public key [#f1]_. Furthermore, vagrant also usually uses
++   :file:`/vagrant` as the default shared folder and assumes that the
++   ``vagrant`` user can invoke commands via :command:`sudo` without having
++   to enter a password.
+ 
+-   Note, that the boxes that {kiwi} produces **require** this folder to
+-   exist, otherwise Vagrant will not be able to start them properly.
+-
+-7. Setup and start SSH daemon
+-
+-   In :file:`config.sh` add the start of sshd:
++   This can be achieved using the function ``baseVagrantSetup`` in
++   :file:`config.sh`:
+ 
+    .. code:: bash
+ 
+-      #======================================
+-      # Activate services
+-      #--------------------------------------
+-      baseInsertService sshd
+-
+-   Also make sure to add the line **UseDNS=no** into
+-   :file:`/etc/ssh/sshd_config`. This can be done by an overlay file or by
+-   patching the file in the above mentioned :file:`config.sh` file.
++      baseVagrantSetup
+ 
+-8. Configure sudo for the Vagrant user
+-
+-   Vagrant expects to have passwordless root permissions via ``sudo`` to be
+-   able to setup your box. Add the following line to :file:`/etc/sudoers`
+-   or add it into a new file :file:`/etc/sudoers.d/vagrant`:
+-
+-   .. code::
+-
+-      vagrant ALL=(ALL) NOPASSWD: ALL
+-
+-   You can also use :command:`visudo` to verify that the resulting
+-   :file:`/etc/sudoers` or :file:`/etc/sudoers.d/vagrant` are valid:
+-
+-   .. code:: bash
++6. Additional customizations:
+ 
+-      visudo -cf /etc/sudoers
+-      if [ $? -ne 0 ]; then
+-          exit 1
+-      fi
++   Additionally to ``baseVagrantSetup``, you might want to also ensure the
++  following:
+ 
++  - If you have installed the Virtualbox guest additions into your box,
++    then also load the ``vboxsf`` kernel module.
++  - When building boxes for libvirt, then ensure that the default wired
++    networking interface is called ``eth0`` and uses DHCP. This is
++    necessary since libvirt uses ``dnsmasq`` to issue IPs to the VMs. This
++    step can be omitted for Virtualbox boxes.
+ 
+ An image built with the above setup creates a Vagrant box file with the
+ extension :file:`.vagrant.libvirt.box` or
+diff --git a/kiwi/config/functions.sh b/kiwi/config/functions.sh
+index 60ba90efe0..a4b5ed2e76 100644
+--- a/kiwi/config/functions.sh
++++ b/kiwi/config/functions.sh
+@@ -490,7 +490,7 @@ function Debug {
+     # /.../
+     # print message if variable DEBUG is set to 1
+     # -----
+-    if test "${DEBUG}" = 1;then
++    if test "${DEBUG:-0}" = 1;then
+         echo "+++++> (caller:${FUNCNAME[1]}:${FUNCNAME[2]} )  $*"
+     fi
+ }
+@@ -1137,4 +1137,39 @@ function baseQuoteFile {
+     mv "${conf}" "${file}"
+ }
+ 
++#======================================
++# baseVagrantSetup
++#--------------------------------------
++function baseVagrantSetup {
++    # insert the default insecure ssh key from here:
++    # https://github.com/hashicorp/vagrant/blob/master/keys/vagrant.pub
++    mkdir -p /home/vagrant/.ssh/
++    echo "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key" > /home/vagrant/.ssh/authorized_keys
++    chmod 0600 /home/vagrant/.ssh/authorized_keys
++    chown -R vagrant:vagrant /home/vagrant/
++
++    # recommended ssh settings for vagrant boxes
++    echo "UseDNS no" >> /etc/ssh/sshd_config
++    echo "GSSAPIAuthentication no" >> /etc/ssh/sshd_config
++
++    # vagrant assumes that it can sudo without a password
++    # => add the vagrant user to the sudoers list
++    SUDOERS_LINE="vagrant ALL=(ALL) NOPASSWD: ALL"
++    if [ -d /etc/sudoers.d ]; then
++        echo "$SUDOERS_LINE" >| /etc/sudoers.d/vagrant
++        visudo -cf /etc/sudoers.d/vagrant
++        chmod 0440 /etc/sudoers.d/vagrant
++    else
++        echo "$SUDOERS_LINE" >> /etc/sudoers
++        visudo -cf /etc/sudoers
++    fi
++
++    # the default shared folder
++    mkdir -p /vagrant
++    chown -R vagrant:vagrant /vagrant
++
++    # SSH service
++    baseInsertService sshd
++}
++
+ # vim: set noexpandtab:
