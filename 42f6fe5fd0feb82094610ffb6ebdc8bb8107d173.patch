@@ -1,0 +1,14 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index c0ab54f002..c72cc519bd 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -70,7 +70,8 @@ build_doc:
+ build_suse_doc:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$TUMBLEWEED_BUILD
+   stage: documentation
+-  <<: *only-default
++  only:
++    - branches
+   script:
+     - tox -e doc_suse
+   artifacts:
