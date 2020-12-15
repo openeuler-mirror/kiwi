@@ -1,0 +1,275 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index a1c9641669..c0ab54f002 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -1,9 +1,16 @@
++.only-default: &only-default
++  only:
++    - branches
++  except:
++    - master
++
+ stages:
+   - test
+   - documentation
+   - deploy
+   - sourcepackage
+   - packages
++  - release
+ 
+ variables:
+   LANG: en_US.UTF-8
+@@ -14,6 +21,7 @@ variables:
+ code_style:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: test
++  <<: *only-default
+   script:
+     - tox -e check
+   cache:
+@@ -24,6 +32,7 @@ code_style:
+ unit_py36:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: test
++  <<: *only-default
+   script:
+     - export PYTHON=python3.6
+     - tox -e unit_py3_6 "-n $(nproc)"
+@@ -32,9 +41,10 @@ unit_py36:
+     paths:
+       - .tox/3.6
+ 
+-unit_py37:
++unit_py38:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: test
++  <<: *only-default
+   script:
+     - export PYTHON=python3.8
+     - tox -e unit_py3_8 "-n $(nproc)"
+@@ -46,6 +56,7 @@ unit_py37:
+ build_doc:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$TUMBLEWEED_BUILD
+   stage: documentation
++  <<: *only-default
+   script:
+     - tox -e packagedoc
+   artifacts:
+@@ -59,6 +70,7 @@ build_doc:
+ build_suse_doc:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$TUMBLEWEED_BUILD
+   stage: documentation
++  <<: *only-default
+   script:
+     - tox -e doc_suse
+   artifacts:
+@@ -92,6 +104,7 @@ push_suse_doc:
+ rpm_source_package:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: sourcepackage
++  <<: *only-default
+   script:
+     - groupadd -f -g 135 -r mock # workaround RHBZ#1740545
+     - 'sed -i "s|build: clean tox|build:|" Makefile'
+@@ -114,6 +127,7 @@ rpm_source_package:
+ rpm_fedora_33:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: packages
++  <<: *only-default
+   script:
+     - "export SRC_RPM=$(ls mock-result-srpm/*kiwi*)"
+     - cp $SRC_RPM .
+@@ -133,6 +147,7 @@ rpm_fedora_33:
+ rpm_suse_TW:
+   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+   stage: packages
++  <<: *only-default
+   script:
+     - "export SRC_RPM=$(ls mock-result-srpm/*kiwi*)"
+     - cp $SRC_RPM .
+@@ -149,3 +164,25 @@ rpm_suse_TW:
+   allow_failure: true
+   dependencies:
+     - rpm_source_package
++
++pypi_upload:
++  stage: release
++  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
++  only:
++    - tags
++  script:
++    - base64 --decode "$PYPI_CONFIG" > .pypirc
++    - export PYTHON=python3.6
++    - tox -e release
++  cache:
++    key: "$CI_JOB_NAME"
++    paths:
++      - .tox/3.6
++
++doc_update:
++  stage: release
++  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
++  only:
++    - tags
++  script:
++    - helper/deploy_pages.sh "$GITHUB_TOKEN" "$GITLAB_USER_NAME" "$GITLAB_USER_EMAIL"
+diff --git a/.travis.yml b/.travis.yml
+deleted file mode 100644
+index 2171c26c6a..0000000000
+--- a/.travis.yml
++++ /dev/null
+@@ -1,52 +0,0 @@
+-language: python
+-
+-branches:
+-  except:
+-  - gh-pages
+-
+-stages:
+-- test
+-- name: deploy
+-  if: tag IS present
+-
+-jobs:
+-  include:
+-  - python: 3.6
+-    env: TOXENV=check,unit_py3_6
+-  - python: 3.8
+-    dist: xenial
+-    sudo: true
+-    env: TOXENV=check,unit_py3_8
+-  - stage: deploy
+-    python: 3.8
+-    env: TOXENV=doc_travis
+-    deploy:
+-      - provider: pages
+-        skip_cleanup: true
+-        local-dir: doc/build_travis
+-        github-token: $GH_TOKEN
+-        keep-history: true
+-        on:
+-          tags: true
+-      - provider: pypi
+-        skip_cleanup: true
+-        user: schaefi
+-        password: $PYPI_PASS
+-        distributions: sdist
+-        on:
+-          tags: true
+-
+-before_install:
+-- sudo apt-get update -qq
+-- sudo apt-get install -y git
+-- sudo apt-get install -y xsltproc
+-- sudo apt-get install -y genisoimage
+-- sudo apt-get install -y enchant
+-- sudo apt-get install -y shellcheck
+-
+-install:
+-- pip install --upgrade pip
+-- pip install tox
+-
+-script:
+-- tox "-n $(nproc)"
+diff --git a/.virtualenv.dev-requirements.txt b/.virtualenv.dev-requirements.txt
+index 3f5206ad20..8111fcc168 100644
+--- a/.virtualenv.dev-requirements.txt
++++ b/.virtualenv.dev-requirements.txt
+@@ -46,3 +46,6 @@ ghp-import
+ 
+ # for helper tools
+ python-dateutil
++
++# for release
++twine
+diff --git a/helper/deploy_pages.sh b/helper/deploy_pages.sh
+new file mode 100755
+index 0000000000..6d5c635b22
+--- /dev/null
++++ b/helper/deploy_pages.sh
+@@ -0,0 +1,44 @@
++#!/bin/bash
++
++set -eu
++
++# setup variables
++access_token=$1
++user_name=$2
++user_mail=$3
++
++repo_uri="https://x-access-token:${access_token}@github.com/OSInside/kiwi.git"
++remote_name="origin"
++target_branch="gh-pages"
++
++# set git user and email
++git config user.name "${user_name}"
++git config user.email "${user_mail}"
++
++# build kiwi documentation suitable for github pages
++tox -e doc_travis
++
++# preserve the new docs
++mv doc/build_travis /tmp
++
++# checkout current pages and wipe them completely
++git checkout "${target_branch}"
++git clean -f .
++git rm -rf .
++
++# sync(move) the new docs to the right place in the git
++rsync -a /tmp/build_travis/ .
++rm -rf /tmp/build_travis
++
++# add all doc sources
++git add .
++
++# commit the new docs
++if ! git commit -m "Update GitHub Pages"; then
++    echo "nothing to commit"
++    exit 0
++fi
++
++# force push the new docs to the pages branch
++git remote set-url "${remote_name}" "${repo_uri}"
++git push --force-with-lease "${remote_name}" "${target_branch}"
+diff --git a/tox.ini b/tox.ini
+index 93e2fe20c8..b11f075674 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -18,8 +18,7 @@ envlist =
+     check,
+     unit_py3_8,
+     unit_py3_6,
+-    packagedoc,
+-    devel
++    packagedoc
+ 
+ 
+ [testenv]
+@@ -31,10 +30,12 @@ basepython =
+     {check,devel,packagedoc,doc,doc_travis,doc_suse}: python3
+     unit_py3_8: python3.8
+     unit_py3_6: python3.6
++    release: python3.6
+ envdir =
+     {check,devel,packagedoc,doc,doc_travis,doc_suse}: {toxworkdir}/3
+     unit_py3_8: {toxworkdir}/3.8
+     unit_py3_6: {toxworkdir}/3.6
++    release: {toxworkdir}/3.6
+ passenv =
+     *
+ usedevelop = True
+@@ -176,3 +177,13 @@ commands =
+     flake8 --statistics -j auto --count {toxinidir}/test/unit
+     bash -c 'shellcheck -e SC1091,SC1090,SC2001,SC2174,SC1117 {toxinidir}/dracut/modules.d/*/* -s bash'
+     bash -c 'shellcheck -e SC1091,SC1090,SC2001,SC2174,SC1117 {toxinidir}/kiwi/config/functions.sh -s bash'
++
++
++# PyPi upload
++[testenv:release]
++deps = {[testenv]deps}
++skip_install = True
++usedevelop = True
++commands =
++    python setup.py sdist
++    twine upload --skip-existing --non-interactive --config-file ./.pypirc dist/*
