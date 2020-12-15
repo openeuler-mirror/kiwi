@@ -1,0 +1,60 @@
+diff --git a/doc/source/concept_and_workflow/shell_scripts.rst b/doc/source/concept_and_workflow/shell_scripts.rst
+index 7906f55e87..f92f72a656 100644
+--- a/doc/source/concept_and_workflow/shell_scripts.rst
++++ b/doc/source/concept_and_workflow/shell_scripts.rst
+@@ -208,10 +208,11 @@ suseSetupProductInformation
+ baseVagrantSetup
+   Configures the image to work as a vagrant box by performing the following
+   changes:
+-  - add the ``vagrant`` user to :file:`/etc/sudoers` or
+-    :file:`/etc/sudoers.d/vagrant`
+-  - insert the insecure vagrant ssh key, apply recommended ssh settings and
+-    start the ssh daemon
++
++  - add the ``vagrant`` user to :file:`/etc/sudoers`
++    or :file:`/etc/sudoers.d/vagrant`
++  - insert the insecure vagrant ssh key, apply recommended
++    ssh settings and start the ssh daemon
+   - create the default shared folder :file:`/vagrant`
+ 
+ Debug {message}
+diff --git a/doc/source/conf.py b/doc/source/conf.py
+index 7c6dc0db32..65abf426f6 100644
+--- a/doc/source/conf.py
++++ b/doc/source/conf.py
+@@ -61,7 +61,7 @@ def setup(app):
+     app.add_config_value('prolog_replacements', {}, True)
+     app.connect('source-read', prologReplace)
+     app.connect("autodoc-process-docstring", remove_module_docstring)
+-    app.add_stylesheet('css/custom.css')
++    app.add_css_file('css/custom.css')
+ 
+ 
+ prolog_replacements = {
+diff --git a/doc/source/working_with_images/disk_setup_for_vagrant.rst b/doc/source/working_with_images/disk_setup_for_vagrant.rst
+index 9f9afea655..eef985cfe0 100644
+--- a/doc/source/working_with_images/disk_setup_for_vagrant.rst
++++ b/doc/source/working_with_images/disk_setup_for_vagrant.rst
+@@ -134,14 +134,14 @@ steps are required:
+ 6. Additional customizations:
+ 
+    Additionally to ``baseVagrantSetup``, you might want to also ensure the
+-  following:
+-
+-  - If you have installed the Virtualbox guest additions into your box,
+-    then also load the ``vboxsf`` kernel module.
+-  - When building boxes for libvirt, then ensure that the default wired
+-    networking interface is called ``eth0`` and uses DHCP. This is
+-    necessary since libvirt uses ``dnsmasq`` to issue IPs to the VMs. This
+-    step can be omitted for Virtualbox boxes.
++   following:
++
++   - If you have installed the Virtualbox guest additions into your box,
++     then also load the ``vboxsf`` kernel module.
++   - When building boxes for libvirt, then ensure that the default wired
++     networking interface is called ``eth0`` and uses DHCP. This is
++     necessary since libvirt uses ``dnsmasq`` to issue IPs to the VMs. This
++     step can be omitted for Virtualbox boxes.
+ 
+ An image built with the above setup creates a Vagrant box file with the
+ extension :file:`.vagrant.libvirt.box` or
