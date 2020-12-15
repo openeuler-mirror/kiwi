@@ -1,0 +1,149 @@
+diff --git a/.gitignore b/.gitignore
+index dc8ca2c3f3..cba5b08671 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -36,7 +36,7 @@ env/
+ .env2/
+ .env3/
+ build/
+-build_travis/
++build_gh_pages/
+ develop-eggs/
+ dist/
+ downloads/
+diff --git a/.virtualenv.dev-requirements.txt b/.virtualenv.dev-requirements.txt
+index 8111fcc168..25dd256569 100644
+--- a/.virtualenv.dev-requirements.txt
++++ b/.virtualenv.dev-requirements.txt
+@@ -40,7 +40,7 @@ sphinx_rtd_theme
+ sphinxcontrib-spelling
+ pyenchant
+ 
+-# for travis deployment tasks
++# for github pages deployment tasks
+ travis-sphinx
+ ghp-import
+ 
+diff --git a/MANIFEST.in b/MANIFEST.in
+index c9ad3842e7..36a8996ad8 100644
+--- a/MANIFEST.in
++++ b/MANIFEST.in
+@@ -42,7 +42,6 @@ recursive-include test *.gz *.iso *.kiwi *.pf2 *.py *.txt *.xml *.xz
+ 
+ include .bumpversion.cfg
+ include .coverage*
+-include .travis*
+ 
+ include .virtualenv.requirements.txt
+ include .virtualenv.dev-requirements.txt
+diff --git a/README.rst b/README.rst
+index dc739de452..c031d20824 100644
+--- a/README.rst
++++ b/README.rst
+@@ -1,10 +1,8 @@
+ KIWI - Next Generation
+ ======================
+ 
+-.. |Build Status| image:: https://travis-ci.com/OSInside/kiwi.svg?branch=master
+-   :target: https://travis-ci.com/OSInside/kiwi
+-.. |GitLab CI Pipeline| image:: https://gitlab.com/schaefi/kiwi-ci/badges/master/pipeline.svg
+-   :target: https://gitlab.com/schaefi/kiwi-ci/pipelines
++.. |GitLab CI Pipeline| image:: https://gitlab.com/kiwi3/kiwi-ci/badges/master/pipeline.svg
++   :target: https://gitlab.com/kiwi3/kiwi-ci/-/pipelines
+ .. |Health| image:: https://api.codacy.com/project/badge/Grade/8ebd8ce362294fabb0870f50358e564f
+    :target: https://www.codacy.com/app/Appliances/kiwi?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=OSInside/kiwi&amp;utm_campaign=Badge_Grade
+ .. |Doc| replace:: `Documentation <https://osinside.github.io/kiwi/>`__
+@@ -13,7 +11,7 @@ KIWI - Next Generation
+ .. |Donate| image:: https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif
+    :target: https://www.paypal.me/SchaeferMarcus
+ 
+-|Build Status| |GitLab CI Pipeline| |Health|
++|GitLab CI Pipeline| |Health|
+ 
+ **KIWI, the OS image and appliance builder.**
+ 
+diff --git a/doc/source/contributing.rst b/doc/source/contributing.rst
+index 6a074863bb..c311bae1d9 100644
+--- a/doc/source/contributing.rst
++++ b/doc/source/contributing.rst
+@@ -199,10 +199,8 @@ Make and commit your changes.
+ 
+     $ git commit -S -a
+ 
+-Run the tests and code style checks. All of these are also performed by the
+-`Travis CI <https://travis-ci.com/OSInside/kiwi>`_ and `GitLab CI
+-<https://gitlab.com/schaefi/kiwi-ci/pipelines>`_ integration test systems
+-when a pull request is created.
++Run the tests and code style checks. All of these are also performed by
++`GitLab CI <https://gitlab.com/kiwi3>`_ when a pull request is created.
+ 
+ .. code:: shell-session
+ 
+diff --git a/helper/deploy_pages.sh b/helper/deploy_pages.sh
+index 6d5c635b22..8fc98d2a42 100755
+--- a/helper/deploy_pages.sh
++++ b/helper/deploy_pages.sh
+@@ -16,10 +16,10 @@ git config user.name "${user_name}"
+ git config user.email "${user_mail}"
+ 
+ # build kiwi documentation suitable for github pages
+-tox -e doc_travis
++tox -e doc_gh_pages
+ 
+ # preserve the new docs
+-mv doc/build_travis /tmp
++mv doc/build_gh_pages /tmp
+ 
+ # checkout current pages and wipe them completely
+ git checkout "${target_branch}"
+@@ -27,8 +27,8 @@ git clean -f .
+ git rm -rf .
+ 
+ # sync(move) the new docs to the right place in the git
+-rsync -a /tmp/build_travis/ .
+-rm -rf /tmp/build_travis
++rsync -a /tmp/build_gh_pages/ .
++rm -rf /tmp/build_gh_pages
+ 
+ # add all doc sources
+ git add .
+diff --git a/tox.ini b/tox.ini
+index b11f075674..e7816ae5fe 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,12 +27,12 @@ description =
+     devel: Test KIWI
+ whitelist_externals = *
+ basepython =
+-    {check,devel,packagedoc,doc,doc_travis,doc_suse}: python3
++    {check,devel,packagedoc,doc,doc_gh_pages,doc_suse}: python3
+     unit_py3_8: python3.8
+     unit_py3_6: python3.6
+     release: python3.6
+ envdir =
+-    {check,devel,packagedoc,doc,doc_travis,doc_suse}: {toxworkdir}/3
++    {check,devel,packagedoc,doc,doc_gh_pages,doc_suse}: {toxworkdir}/3
+     unit_py3_8: {toxworkdir}/3.8
+     unit_py3_6: {toxworkdir}/3.6
+     release: {toxworkdir}/3.6
+@@ -103,16 +103,16 @@ commands =
+     {[testenv:doc.man]commands}
+ 
+ 
+-[testenv:doc_travis]
+-description = Documentation build suitable for doc deployment in travis env
++[testenv:doc_gh_pages]
++description = Documentation build suitable for doc deployment to github pages
+ skip_install = True
+ usedevelop = True
+ deps = {[testenv:doc]deps}
+ changedir=doc
+ commands =
+     {[testenv:doc.man]commands}
+-    travis-sphinx --outdir build_travis build --nowarn --source ./source
+-    bash -c 'touch ./build_travis/.nojekyll'
++    travis-sphinx --outdir build_gh_pages build --nowarn --source ./source
++    bash -c 'touch ./build_gh_pages/.nojekyll'
+ 
+ 
+ [testenv:doc_suse]
