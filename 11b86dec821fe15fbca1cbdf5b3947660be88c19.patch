@@ -1,0 +1,608 @@
+diff --git a/kiwi/builder/container.py b/kiwi/builder/container.py
+index c16f9ec7c9..6894b6f797 100644
+--- a/kiwi/builder/container.py
++++ b/kiwi/builder/container.py
+@@ -113,7 +113,7 @@ def create(self):
+             log.info(
+                 'Setting up %s container', self.requested_container_type
+             )
+-            container_setup = ContainerSetup(
++            container_setup = ContainerSetup.new(
+                 self.requested_container_type, self.root_dir,
+                 self.container_config
+             )
+@@ -130,7 +130,7 @@ def create(self):
+         log.info(
+             '--> Creating container image'
+         )
+-        container_image = ContainerImage(
++        container_image = ContainerImage.new(
+             self.requested_container_type, self.root_dir, self.container_config
+         )
+         self.filename = container_image.create(
+diff --git a/kiwi/container/__init__.py b/kiwi/container/__init__.py
+index eb515790c3..c64031614b 100644
+--- a/kiwi/container/__init__.py
++++ b/kiwi/container/__init__.py
+@@ -15,16 +15,18 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.container.oci import ContainerImageOCI
+-from kiwi.container.appx import ContainerImageAppx
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ 
+ from kiwi.exceptions import (
+     KiwiContainerImageSetupError
+ )
+ 
+ 
+-class ContainerImage:
++class ContainerImage(metaclass=ABCMeta):
+     """
+     **Container Image factory**
+ 
+@@ -32,20 +34,29 @@ class ContainerImage:
+     :param string root_dir: root directory path name
+     :param dict custom_args: custom arguments
+     """
+-    def __new__(self, name, root_dir, custom_args=None):
+-        if name == 'docker':
+-            return ContainerImageOCI(
+-                root_dir, 'docker-archive', custom_args=custom_args
+-            )
+-        elif name == 'oci':
+-            return ContainerImageOCI(
+-                root_dir, 'oci-archive', custom_args=custom_args
+-            )
+-        elif name == 'appx':
+-            return ContainerImageAppx(
+-                root_dir, custom_args=custom_args
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(name: str, root_dir: str, custom_args: dict = None):
++        name_map = {
++            'docker': 'OCI',
++            'oci': 'OCI',
++            'appx': 'Appx'
++        }
++        args_map = {
++            'docker': [root_dir, 'docker-archive', custom_args],
++            'oci': [root_dir, 'oci-archive', custom_args],
++            'appx': [root_dir, custom_args]
++        }
++        try:
++            container_image = importlib.import_module(
++                'kiwi.container.{}'.format('oci' if name == 'docker' else name)
+             )
+-        else:
++            module_name = 'ContainerImage{}'.format(name_map[name])
++            return container_image.__dict__[module_name](*args_map[name])
++        except Exception:
+             raise KiwiContainerImageSetupError(
+                 'Support for {0} container not implemented'.format(name)
+             )
+diff --git a/kiwi/container/oci.py b/kiwi/container/oci.py
+index 7ad5f38eb9..403ac9f4e2 100644
+--- a/kiwi/container/oci.py
++++ b/kiwi/container/oci.py
+@@ -118,7 +118,7 @@ def create(self, filename, base_image):
+         exclude_list.append('sys/*')
+         exclude_list.append('proc/*')
+ 
+-        oci = OCI()
++        oci = OCI.new()
+         if base_image:
+             oci.import_container_image(
+                 'oci-archive:{0}:{1}'.format(
+diff --git a/kiwi/container/setup/__init__.py b/kiwi/container/setup/__init__.py
+index 43e7b37b99..f84b4dfaf9 100644
+--- a/kiwi/container/setup/__init__.py
++++ b/kiwi/container/setup/__init__.py
+@@ -15,28 +15,40 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-# project
+-from kiwi.container.setup.docker import ContainerSetupDocker
+-from kiwi.container.setup.oci import ContainerSetupOCI
+-from kiwi.container.setup.appx import ContainerSetupAppx
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
+ 
++# project
+ from kiwi.exceptions import (
+     KiwiContainerSetupError
+ )
+ 
+ 
+-class ContainerSetup:
++class ContainerSetup(metaclass=ABCMeta):
+     """
+         container setup factory
+     """
+-    def __new__(self, name, root_dir, custom_args=None):
+-        if name == 'docker':
+-            return ContainerSetupDocker(root_dir, custom_args)
+-        elif name == 'oci':
+-            return ContainerSetupOCI(root_dir, custom_args)
+-        elif name == 'appx':
+-            return ContainerSetupAppx(root_dir, custom_args)
+-        else:
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(name: str, root_dir: str, custom_args: dict = None):
++        name_map = {
++            'docker': 'Docker',
++            'oci': 'OCI',
++            'appx': 'Appx'
++        }
++        try:
++            container_setup = importlib.import_module(
++                'kiwi.container.setup.{}'.format(name)
++            )
++            module_name = 'ContainerSetup{}'.format(name_map[name])
++            return container_setup.__dict__[module_name](root_dir, custom_args)
++        except Exception:
+             raise KiwiContainerSetupError(
+                 'Support for {0} container not implemented'.format(name)
+             )
+diff --git a/kiwi/filesystem/isofs.py b/kiwi/filesystem/isofs.py
+index bd3217b7b8..08a733d902 100644
+--- a/kiwi/filesystem/isofs.py
++++ b/kiwi/filesystem/isofs.py
+@@ -45,7 +45,7 @@ def create_on_file(self, filename, label=None, exclude=None):
+         meta_data = self.custom_args['meta_data']
+         efi_mode = meta_data.get('efi_mode')
+         ofw_mode = meta_data.get('ofw_mode')
+-        iso_tool = IsoTools(self.root_dir)
++        iso_tool = IsoTools.new(self.root_dir)
+ 
+         iso = Iso(self.root_dir)
+         if not efi_mode and not ofw_mode:
+diff --git a/kiwi/iso_tools/__init__.py b/kiwi/iso_tools/__init__.py
+index d98ad1d2ae..8aa90160c7 100644
+--- a/kiwi/iso_tools/__init__.py
++++ b/kiwi/iso_tools/__init__.py
+@@ -15,19 +15,40 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
++
+ # project
+-from kiwi.iso_tools.cdrtools import IsoToolsCdrTools
+-from kiwi.iso_tools.xorriso import IsoToolsXorrIso
++from kiwi.exceptions import KiwiIsoToolError
+ from kiwi.runtime_config import RuntimeConfig
+ 
+ 
+-class IsoTools:
++class IsoTools(metaclass=ABCMeta):
+     """
+     **IsoTools factory**
+     """
+-    def __new__(self, source_dir):
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new(source_dir):
++        name_map = {
++            'xorriso': 'XorrIso',
++            'cdrtools': 'CdrTools'
++        }
+         runtime_config = RuntimeConfig()
+-        if runtime_config.get_iso_tool_category() == 'cdrtools':
+-            return IsoToolsCdrTools(source_dir)
+-        else:
+-            return IsoToolsXorrIso(source_dir)
++        tool = runtime_config.get_iso_tool_category()
++        try:
++            iso_tool = importlib.import_module(
++                'kiwi.iso_tools.{}'.format(tool)
++            )
++            module_name = 'IsoTools{}'.format(name_map[tool])
++            return iso_tool.__dict__[module_name](source_dir)
++        except Exception:
++            raise KiwiIsoToolError(
++                'No support for {} tool available'.format(tool)
++            )
+diff --git a/kiwi/oci_tools/__init__.py b/kiwi/oci_tools/__init__.py
+index a5d0be46ca..8951d96761 100644
+--- a/kiwi/oci_tools/__init__.py
++++ b/kiwi/oci_tools/__init__.py
+@@ -15,28 +15,42 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++import importlib
++from abc import (
++    ABCMeta,
++    abstractmethod
++)
++
+ # project
+-from kiwi.oci_tools.umoci import OCIUmoci
+-from kiwi.oci_tools.buildah import OCIBuildah
+ from kiwi.runtime_config import RuntimeConfig
+-
+ from kiwi.exceptions import (
+     KiwiOCIArchiveToolError
+ )
+ 
+ 
+-class OCI:
++class OCI(metaclass=ABCMeta):
+     """
+     **OCI Factory**
+     """
+-    def __new__(self):
++    @abstractmethod
++    def __init__(self) -> None:
++        return None  # pragma: no cover
++
++    @staticmethod
++    def new():
++        name_map = {
++            'umoci': 'Umoci',
++            'buildah': 'Buildah'
++        }
+         runtime_config = RuntimeConfig()
+         tool_name = runtime_config.get_oci_archive_tool()
+-        if tool_name == 'umoci':
+-            return OCIUmoci()
+-        elif tool_name == 'buildah':
+-            return OCIBuildah()
+-        else:
++        try:
++            oci_tool = importlib.import_module(
++                'kiwi.oci_tools.{}'.format(tool_name)
++            )
++            module_name = 'OCI{}'.format(name_map[tool_name])
++            return oci_tool.__dict__[module_name]()
++        except Exception:
+             raise KiwiOCIArchiveToolError(
+                 'No support for {0} tool available'.format(tool_name)
+             )
+diff --git a/kiwi/system/root_import/oci.py b/kiwi/system/root_import/oci.py
+index 5eb07b306e..6d8a36702c 100644
+--- a/kiwi/system/root_import/oci.py
++++ b/kiwi/system/root_import/oci.py
+@@ -55,7 +55,7 @@ def sync_data(self):
+             log.warning('Bypassing base image URI to OCI tools')
+             image_uri = self.unknown_uri
+ 
+-        oci = OCI()
++        oci = OCI.new()
+         oci.import_container_image(image_uri)
+         oci.unpack()
+         oci.import_rootfs(self.root_dir)
+diff --git a/test/unit/builder/container_test.py b/test/unit/builder/container_test.py
+index 2a139232f1..ace87c860a 100644
+--- a/test/unit/builder/container_test.py
++++ b/test/unit/builder/container_test.py
+@@ -112,22 +112,22 @@ def side_effect(filename):
+     @patch('kiwi.builder.container.ContainerImage')
+     def test_create(self, mock_image, mock_setup):
+         container_setup = mock.Mock()
+-        mock_setup.return_value = container_setup
++        mock_setup.new.return_value = container_setup
+         container_image = mock.Mock()
+         container_image.create = mock.Mock(
+             return_value='target_dir/image_name.x86_64-1.2.3.docker.tar.xz'
+         )
+-        mock_image.return_value = container_image
++        mock_image.new.return_value = container_image
+         self.setup.export_package_verification.return_value = '.verified'
+         self.setup.export_package_changes.return_value = '.changes'
+         self.setup.export_package_list.return_value = '.packages'
+         self.container.base_image = None
+         self.container.create()
+-        mock_setup.assert_called_once_with(
++        mock_setup.new.assert_called_once_with(
+             'docker', 'root_dir', self.container_config
+         )
+         container_setup.setup.assert_called_once_with()
+-        mock_image.assert_called_once_with(
++        mock_image.new.assert_called_once_with(
+             'docker', 'root_dir', self.container_config
+         )
+         container_image.create.assert_called_once_with(
+@@ -188,7 +188,7 @@ def side_effect(filename):
+         container_image.create = mock.Mock(
+             return_value='target_dir/image_name.x86_64-1.2.3.docker.tar.xz'
+         )
+-        mock_image.return_value = container_image
++        mock_image.new.return_value = container_image
+ 
+         container = ContainerBuilder(
+             self.xml_state, 'target_dir', 'root_dir'
+@@ -212,7 +212,7 @@ def side_effect(filename):
+             'checksumvalue', 'root_dir/image/imported_root.md5'
+         )
+ 
+-        mock_image.assert_called_once_with(
++        mock_image.new.assert_called_once_with(
+             'docker', 'root_dir', self.container_config
+         )
+         container_image.create.assert_called_once_with(
+diff --git a/test/unit/container/init_test.py b/test/unit/container/init_test.py
+index 7b9fa31082..04eebbc89d 100644
+--- a/test/unit/container/init_test.py
++++ b/test/unit/container/init_test.py
+@@ -9,25 +9,25 @@
+ class TestContainerImage:
+     def test_container_image_not_implemented(self):
+         with raises(KiwiContainerImageSetupError):
+-            ContainerImage('foo', 'root_dir')
++            ContainerImage.new('foo', 'root_dir')
+ 
+-    @patch('kiwi.container.ContainerImageOCI')
++    @patch('kiwi.container.oci.ContainerImageOCI')
+     def test_container_image_docker(self, mock_docker):
+-        ContainerImage('docker', 'root_dir')
++        ContainerImage.new('docker', 'root_dir')
+         mock_docker.assert_called_once_with(
+-            'root_dir', 'docker-archive', custom_args=None
++            'root_dir', 'docker-archive', None
+         )
+ 
+-    @patch('kiwi.container.ContainerImageOCI')
++    @patch('kiwi.container.oci.ContainerImageOCI')
+     def test_container_image_oci(self, mock_oci):
+-        ContainerImage('oci', 'root_dir')
++        ContainerImage.new('oci', 'root_dir')
+         mock_oci.assert_called_once_with(
+-            'root_dir', 'oci-archive', custom_args=None
++            'root_dir', 'oci-archive', None
+         )
+ 
+-    @patch('kiwi.container.ContainerImageAppx')
++    @patch('kiwi.container.appx.ContainerImageAppx')
+     def test_container_image_appx(self, mock_appx):
+-        ContainerImage('appx', 'root_dir')
++        ContainerImage.new('appx', 'root_dir')
+         mock_appx.assert_called_once_with(
+-            'root_dir', custom_args=None
++            'root_dir', None
+         )
+diff --git a/test/unit/container/oci_test.py b/test/unit/container/oci_test.py
+index 01f0d82dff..761f1b558a 100644
+--- a/test/unit/container/oci_test.py
++++ b/test/unit/container/oci_test.py
+@@ -120,7 +120,7 @@ def test_init_in_buildservice_without_disturl(
+     def test_create_oci_archive(self, mock_cache, mock_OCI):
+         mock_cache.return_value = 'var/cache/kiwi'
+         mock_oci = mock.Mock()
+-        mock_OCI.return_value = mock_oci
++        mock_OCI.new.return_value = mock_oci
+ 
+         self.oci.runtime_config.get_container_compression = mock.Mock(
+             return_value=None
+@@ -164,7 +164,7 @@ def test_create_derived_docker_archive(
+     ):
+         mock_cache.return_value = 'var/cache/kiwi'
+         mock_oci = mock.Mock()
+-        mock_OCI.return_value = mock_oci
++        mock_OCI.new.return_value = mock_oci
+ 
+         self.oci.create('result.tar', 'root_dir/image/image_file')
+ 
+diff --git a/test/unit/container/setup/init_test.py b/test/unit/container/setup/init_test.py
+index 40ce4200f0..a57caca6d1 100644
+--- a/test/unit/container/setup/init_test.py
++++ b/test/unit/container/setup/init_test.py
+@@ -9,19 +9,19 @@
+ class TestContainerSetup:
+     def test_container_not_implemented(self):
+         with raises(KiwiContainerSetupError):
+-            ContainerSetup('foo', 'root_dir')
++            ContainerSetup.new('foo', 'root_dir')
+ 
+-    @patch('kiwi.container.setup.ContainerSetupDocker')
++    @patch('kiwi.container.setup.docker.ContainerSetupDocker')
+     def test_container_docker(self, mock_docker):
+-        ContainerSetup('docker', 'root_dir')
++        ContainerSetup.new('docker', 'root_dir')
+         mock_docker.assert_called_once_with('root_dir', None)
+ 
+-    @patch('kiwi.container.setup.ContainerSetupOCI')
++    @patch('kiwi.container.setup.oci.ContainerSetupOCI')
+     def test_container_oci(self, mock_oci):
+-        ContainerSetup('oci', 'root_dir')
++        ContainerSetup.new('oci', 'root_dir')
+         mock_oci.assert_called_once_with('root_dir', None)
+ 
+-    @patch('kiwi.container.setup.ContainerSetupAppx')
++    @patch('kiwi.container.setup.appx.ContainerSetupAppx')
+     def test_container_appx(self, mock_appx):
+-        ContainerSetup('appx', 'root_dir')
++        ContainerSetup.new('appx', 'root_dir')
+         mock_appx.assert_called_once_with('root_dir', None)
+diff --git a/test/unit/filesystem/isofs_test.py b/test/unit/filesystem/isofs_test.py
+index 056523ead1..ea8c8b2fc5 100644
+--- a/test/unit/filesystem/isofs_test.py
++++ b/test/unit/filesystem/isofs_test.py
+@@ -36,7 +36,7 @@ def test_create_on_file(self, mock_iso, mock_cdrtools):
+         )
+         iso = mock.Mock()
+         iso.header_end_name = 'header_end'
+-        mock_cdrtools.return_value = iso_tool
++        mock_cdrtools.new.return_value = iso_tool
+         mock_iso.return_value = iso
+         self.isofs.create_on_file('myimage', None)
+ 
+@@ -75,7 +75,7 @@ def test_create_on_file_EFI_enabled(self, mock_iso, mock_cdrtools):
+         )
+         iso = mock.Mock()
+         iso.header_end_name = 'header_end'
+-        mock_cdrtools.return_value = iso_tool
++        mock_cdrtools.new.return_value = iso_tool
+         mock_iso.return_value = iso
+         self.isofs.custom_args['meta_data']['efi_mode'] = 'uefi'
+         with self._caplog.at_level(logging.WARNING):
+diff --git a/test/unit/iso_tools/init_test.py b/test/unit/iso_tools/init_test.py
+index d02d165e60..11dd6a49aa 100644
+--- a/test/unit/iso_tools/init_test.py
++++ b/test/unit/iso_tools/init_test.py
+@@ -1,7 +1,9 @@
++from pytest import raises
+ from mock import patch
+ import mock
+ 
+ from kiwi.iso_tools import IsoTools
++from kiwi.exceptions import KiwiIsoToolError
+ 
+ 
+ class TestIsoTools:
+@@ -9,22 +11,29 @@ def setup(self):
+         self.runtime_config = mock.Mock()
+         self.runtime_config.get_iso_tool_category = mock.Mock()
+ 
+-    @patch('kiwi.iso_tools.IsoToolsCdrTools')
++    @patch('kiwi.iso_tools.cdrtools.IsoToolsCdrTools')
+     @patch('kiwi.iso_tools.RuntimeConfig')
+     def test_iso_tools_cdrtools(
+         self, mock_RuntimeConfig, mock_IsoToolsCdrTools
+     ):
+         self.runtime_config.get_iso_tool_category.return_value = 'cdrtools'
+         mock_RuntimeConfig.return_value = self.runtime_config
+-        IsoTools('root-dir')
++        IsoTools.new('root-dir')
+         mock_IsoToolsCdrTools.assert_called_once_with('root-dir')
+ 
+-    @patch('kiwi.iso_tools.IsoToolsXorrIso')
++    @patch('kiwi.iso_tools.xorriso.IsoToolsXorrIso')
+     @patch('kiwi.iso_tools.RuntimeConfig')
+     def test_iso_tools_xorriso(
+         self, mock_RuntimeConfig, mock_IsoToolsXorrIso
+     ):
+         self.runtime_config.get_iso_tool_category.return_value = 'xorriso'
+         mock_RuntimeConfig.return_value = self.runtime_config
+-        IsoTools('root-dir')
++        IsoTools.new('root-dir')
+         mock_IsoToolsXorrIso.assert_called_once_with('root-dir')
++
++    @patch('kiwi.iso_tools.RuntimeConfig')
++    def test_iso_tools_unsupported(self, mock_RuntimeConfig):
++        self.runtime_config.get_iso_tool_category.return_value = 'foo'
++        mock_RuntimeConfig.return_value = self.runtime_config
++        with raises(KiwiIsoToolError):
++            IsoTools.new('root_dir')
+diff --git a/test/unit/oci_tools/init_test.py b/test/unit/oci_tools/init_test.py
+index f61f6ea27c..7f303c6b21 100644
+--- a/test/unit/oci_tools/init_test.py
++++ b/test/unit/oci_tools/init_test.py
+@@ -15,24 +15,24 @@ def setup(self):
+         self.runtime_config = Mock()
+         self.runtime_config.get_oci_archive_tool = Mock()
+ 
+-    @patch('kiwi.oci_tools.OCIUmoci')
++    @patch('kiwi.oci_tools.umoci.OCIUmoci')
+     @patch('kiwi.oci_tools.RuntimeConfig')
+     def test_oci_tool_umoci(
+         self, mock_RuntimeConfig, mock_OCIUmoci
+     ):
+         self.runtime_config.get_oci_archive_tool.return_value = 'umoci'
+         mock_RuntimeConfig.return_value = self.runtime_config
+-        OCI()
++        OCI.new()
+         mock_OCIUmoci.assert_called_once_with()
+ 
+-    @patch('kiwi.oci_tools.OCIBuildah')
++    @patch('kiwi.oci_tools.buildah.OCIBuildah')
+     @patch('kiwi.oci_tools.RuntimeConfig')
+     def test_oci_tool_buildah(
+         self, mock_RuntimeConfig, mock_OCIBuildah
+     ):
+         self.runtime_config.get_oci_archive_tool.return_value = 'buildah'
+         mock_RuntimeConfig.return_value = self.runtime_config
+-        OCI()
++        OCI.new()
+         mock_OCIBuildah.assert_called_once_with()
+ 
+     @patch('kiwi.oci_tools.RuntimeConfig')
+@@ -40,4 +40,4 @@ def test_oci_tool_not_supported(self, mock_RuntimeConfig):
+         self.runtime_config.get_oci_archive_tool.return_value = 'foo'
+         mock_RuntimeConfig.return_value = self.runtime_config
+         with raises(KiwiOCIArchiveToolError):
+-            OCI()
++            OCI.new()
+diff --git a/test/unit/system/root_import/oci_test.py b/test/unit/system/root_import/oci_test.py
+index 71646d816a..0981b2b201 100644
+--- a/test/unit/system/root_import/oci_test.py
++++ b/test/unit/system/root_import/oci_test.py
+@@ -42,7 +42,7 @@ def test_failed_init(self, mock_path):
+     @patch('kiwi.system.root_import.oci.OCI')
+     def test_sync_data(self, mock_OCI, mock_path, mock_md5, mock_compress):
+         oci = Mock()
+-        mock_OCI.return_value = oci
++        mock_OCI.new.return_value = oci
+         md5 = Mock()
+         mock_md5.return_value = Mock()
+ 
+@@ -52,7 +52,7 @@ def test_sync_data(self, mock_OCI, mock_path, mock_md5, mock_compress):
+ 
+         self.oci_import.sync_data()
+ 
+-        mock_OCI.assert_called_once_with()
++        mock_OCI.new.assert_called_once_with()
+ 
+         oci.unpack.assert_called_once_with()
+         oci.import_rootfs.assert_called_once_with(
+@@ -70,7 +70,7 @@ def test_sync_data_compressed_image(
+         self, mock_OCI, mock_path, mock_md5, mock_compress
+     ):
+         oci = Mock()
+-        mock_OCI.return_value = oci
++        mock_OCI.new.return_value = oci
+         md5 = Mock()
+         mock_md5.return_value = Mock()
+ 
+@@ -80,7 +80,7 @@ def test_sync_data_compressed_image(
+ 
+         self.oci_import.sync_data()
+ 
+-        mock_OCI.assert_called_once_with()
++        mock_OCI.new.assert_called_once_with()
+ 
+         oci.unpack.assert_called_once_with()
+         oci.import_rootfs.assert_called_once_with(
+@@ -100,7 +100,7 @@ def test_sync_data_unknown_uri(
+     ):
+         mock_exists.return_value = True
+         oci = Mock()
+-        mock_OCI.return_value = oci
++        mock_OCI.new.return_value = oci
+         md5 = Mock()
+         mock_md5.return_value = Mock()
+         with patch.dict('os.environ', {'HOME': '../data'}):
+@@ -111,7 +111,7 @@ def test_sync_data_unknown_uri(
+ 
+         with self._caplog.at_level(logging.WARNING):
+             oci_import.sync_data()
+-            mock_OCI.assert_called_once_with()
++            mock_OCI.new.assert_called_once_with()
+             oci.import_container_image.assert_called_once_with(
+                 'docker:image:tag'
+             )
