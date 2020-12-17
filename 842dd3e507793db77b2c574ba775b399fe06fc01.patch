@@ -1,0 +1,2011 @@
+diff --git a/.virtualenv.dev-requirements.txt b/.virtualenv.dev-requirements.txt
+index 25dd256569..3bf4d596cc 100644
+--- a/.virtualenv.dev-requirements.txt
++++ b/.virtualenv.dev-requirements.txt
+@@ -26,6 +26,7 @@ wheel
+ 
+ # Python style guide checker
+ flake8
++mypy
+ 
+ # Generate Data Structures from XML Schema
+ # http://pythonhosted.org/generateDS
+diff --git a/kiwi/command_process.py b/kiwi/command_process.py
+index 2030b4fd83..45e6a87695 100644
+--- a/kiwi/command_process.py
++++ b/kiwi/command_process.py
+@@ -20,6 +20,7 @@
+ 
+ # project
+ from kiwi.utils.codec import Codec
++from kiwi.logger import Logger
+ 
+ from kiwi.exceptions import KiwiCommandError
+ 
+@@ -117,12 +118,12 @@ def returncode(self):
+         return self.command.get_error_code()
+ 
+     def _init_progress(self):
+-        log.progress(
++        Logger.progress(
+             0, 100, '[ INFO    ]: Processing'
+         )
+ 
+     def _stop_progress(self):
+-        log.progress(
++        Logger.progress(
+             100, 100, '[ INFO    ]: Processing'
+         )
+ 
+@@ -134,7 +135,7 @@ def _update_progress(
+             if match_method(item, command_output):
+                 self.items_processed += 1
+                 if self.items_processed <= items_count:
+-                    log.progress(
++                    Logger.progress(
+                         self.items_processed, items_count,
+                         '[ INFO    ]: Processing'
+                     )
+diff --git a/kiwi/exceptions.py b/kiwi/exceptions.py
+index 03bb1e45f3..6811096104 100644
+--- a/kiwi/exceptions.py
++++ b/kiwi/exceptions.py
+@@ -223,13 +223,6 @@ class KiwiDebootstrapError(KiwiError):
+     """
+ 
+ 
+-class KiwiDescriptionConflict(KiwiError):
+-    """
+-    Exception raised if both, a description file and xml_content
+-    is provided
+-    """
+-
+-
+ class KiwiDescriptionInvalid(KiwiError):
+     """
+     Exception raised if the XML description failed to validate
+diff --git a/kiwi/logger.py b/kiwi/logger.py
+index 95e0c8c75a..673deb5bc2 100644
+--- a/kiwi/logger.py
++++ b/kiwi/logger.py
+@@ -15,6 +15,9 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++from typing import (
++    Dict, Optional
++)
+ import logging
+ import sys
+ 
+@@ -35,12 +38,12 @@ class Logger(logging.Logger):
+     """
+     **Extended logging facility based on Python logging**
+ 
+-    :param string name: name of the logger
++    :param str name: name of the logger
+     """
+-    def __init__(self, name):
++    def __init__(self, name: str):
+         logging.Logger.__init__(self, name)
+-        self.console_handlers = {}
+-        self.logfile = None
++        self.console_handlers: Dict = {}
++        self.logfile: Optional[str] = None
+         # log INFO to stdout
+         self._add_stream_handler(
+             'info',
+@@ -68,7 +71,7 @@ def __init__(self, name):
+         )
+         self.log_level = self.level
+ 
+-    def getLogLevel(self):
++    def getLogLevel(self) -> int:
+         """
+         Return currently used log level
+ 
+@@ -78,7 +81,7 @@ def getLogLevel(self):
+         """
+         return self.log_level
+ 
+-    def setLogLevel(self, level):
++    def setLogLevel(self, level: int) -> None:
+         """
+         Set custom log level for all console handlers
+ 
+@@ -88,7 +91,7 @@ def setLogLevel(self, level):
+         for handler_type in self.console_handlers:
+             self.console_handlers[handler_type].setLevel(level)
+ 
+-    def set_color_format(self):
++    def set_color_format(self) -> None:
+         """
+         Set color format for all console handlers
+         """
+@@ -106,11 +109,11 @@ def set_color_format(self):
+                     ColorFormatter(message_format, '%H:%M:%S')
+                 )
+ 
+-    def set_logfile(self, filename):
++    def set_logfile(self, filename: str) -> None:
+         """
+         Set logfile handler
+ 
+-        :param string filename: logfile file path
++        :param str filename: logfile file path
+         """
+         try:
+             logfile = logging.FileHandler(
+@@ -129,7 +132,7 @@ def set_logfile(self, filename):
+                 '%s: %s' % (type(e).__name__, format(e))
+             )
+ 
+-    def get_logfile(self):
++    def get_logfile(self) -> Optional[str]:
+         """
+         Return file path name of logfile
+ 
+@@ -139,7 +142,10 @@ def get_logfile(self):
+         """
+         return self.logfile
+ 
+-    def progress(self, current, total, prefix, bar_length=40):
++    @staticmethod
++    def progress(
++        current: int, total: int, prefix: str, bar_length: int = 40
++    ) -> None:
+         """
+         Custom progress log information. progress information is
+         intentionally only logged to stdout and will bypass any
+diff --git a/kiwi/logger_color_formatter.py b/kiwi/logger_color_formatter.py
+index c55f41918a..a7405fdc98 100644
+--- a/kiwi/logger_color_formatter.py
++++ b/kiwi/logger_color_formatter.py
+@@ -49,7 +49,7 @@ def __init__(self):
+             'bold': '\033[1m'
+         }
+ 
+-    def format_message(self, level, message):
++    def format_message(self, level: str, message: str) -> str:
+         """
+         Message formatter with support for embedded color sequences
+ 
+@@ -63,8 +63,8 @@ def format_message(self, level, message):
+         The color of the message depends on the level and is defined
+         in the ColorMessage constructor
+ 
+-        :param int level: color level number
+-        :param string message: text
++        :param str level: color level name
++        :param str message: text
+ 
+         :return: color message with escape sequences
+ 
+@@ -109,11 +109,11 @@ class ColorFormatter(logging.Formatter):
+ 
+         ColorFormatter(message_format, '%H:%M:%S')
+     """
+-    def __init__(self, *args, **kwargs):
++    def __init__(self, *args: str, **kwargs: str):
+         # can't do super(...) here because Formatter is an old school class
+         logging.Formatter.__init__(self, *args, **kwargs)
+ 
+-    def format(self, record):
++    def format(self, record: logging.LogRecord) -> str:
+         """
+         Creates a logging Formatter with support for color messages
+ 
+diff --git a/kiwi/logger_filter.py b/kiwi/logger_filter.py
+index 341d9f59e4..1aac937ecd 100644
+--- a/kiwi/logger_filter.py
++++ b/kiwi/logger_filter.py
+@@ -22,95 +22,91 @@ class LoggerSchedulerFilter(logging.Filter):
+     """
+     **Extended standard logging Filter**
+     """
+-    def filter(self, record):
++    def filter(self, record: logging.LogRecord) -> bool:
+         """
+         Messages from apscheduler scheduler instances are filtered out
+         They conflict with console progress information
+ 
+         :param tuple record: logging message record
+ 
+-        :return: record.name
++        :return: True|False
+ 
+-        :rtype: str
++        :rtype: bool
+         """
+         ignorables = [
+             'apscheduler.scheduler',
+             'apscheduler.executors.default'
+         ]
+-        return record.name not in ignorables
++        return bool(record.name not in ignorables)
+ 
+ 
+ class InfoFilter(logging.Filter):
+     """
+     **Extended standard logging Filter**
+     """
+-    def filter(self, record):
++    def filter(self, record: logging.LogRecord) -> bool:
+         """
+-        Only messages with record level INFO and WARNING can pass
++        Only messages with record level INFO can pass
+         for messages with another level an extra handler is used
+ 
+         :param tuple record: logging message record
+ 
+-        :return: record.name
++        :return: True|False
+ 
+-        :rtype: str
++        :rtype: bool
+         """
+-        if record.levelno == logging.INFO:
+-            return True
++        return True if record.levelno == logging.INFO else False
+ 
+ 
+ class DebugFilter(logging.Filter):
+     """
+     **Extended standard debug logging Filter**
+     """
+-    def filter(self, record):
++    def filter(self, record: logging.LogRecord) -> bool:
+         """
+         Only messages with record level DEBUG can pass
+         for messages with another level an extra handler is used
+ 
+         :param tuple record: logging message record
+ 
+-        :return: record.name
++        :return: True|False
+ 
+-        :rtype: str
++        :rtype: bool
+         """
+-        if record.levelno == logging.DEBUG:
+-            return True
++        return True if record.levelno == logging.DEBUG else False
+ 
+ 
+ class ErrorFilter(logging.Filter):
+     """
+     **Extended standard error logging Filter**
+     """
+-    def filter(self, record):
++    def filter(self, record: logging.LogRecord) -> bool:
+         """
+         Only messages with record level DEBUG can pass
+         for messages with another level an extra handler is used
+ 
+         :param tuple record: logging message record
+ 
+-        :return: record.name
++        :return: True|False
+ 
+-        :rtype: str
++        :rtype: bool
+         """
+-        if record.levelno == logging.ERROR:
+-            return True
++        return True if record.levelno == logging.ERROR else False
+ 
+ 
+ class WarningFilter(logging.Filter):
+     """
+     **Extended standard warning logging Filter**
+     """
+-    def filter(self, record):
++    def filter(self, record: logging.LogRecord) -> bool:
+         """
+         Only messages with record level WARNING can pass
+         for messages with another level an extra handler is used
+ 
+         :param tuple record: logging message record
+ 
+-        :return: record.name
++        :return: True|False
+ 
+-        :rtype: str
++        :rtype: bool
+         """
+-        if record.levelno == logging.WARNING:
+-            return True
++        return True if record.levelno == logging.WARNING else False
+diff --git a/kiwi/markup/__init__.py b/kiwi/markup/__init__.py
+index 89a49bb621..ba3e413b80 100644
+--- a/kiwi/markup/__init__.py
++++ b/kiwi/markup/__init__.py
+@@ -32,8 +32,7 @@ class Markup(metaclass=ABCMeta):
+     """
+     **Markup factory**
+ 
+-    :param string description: path to description file
+-    :param string xml_content: description data as content string
++    :param str description: path to description file
+     """
+     @abstractmethod
+     def __init__(self) -> None:
+diff --git a/kiwi/markup/any.py b/kiwi/markup/any.py
+index af527ee450..b64179445c 100644
+--- a/kiwi/markup/any.py
++++ b/kiwi/markup/any.py
+@@ -15,6 +15,7 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++from typing import Any
+ import importlib
+ from tempfile import NamedTemporaryFile
+ 
+@@ -31,7 +32,7 @@ class MarkupAny(MarkupBase):
+     """
+     **Implements markup handling for XML, YAML, JSON and INI**
+     """
+-    def post_init(self):
++    def post_init(self) -> None:
+         """
+         Convert given description file into XML
+ 
+@@ -39,7 +40,7 @@ def post_init(self):
+         input format and can convert YAML, JSON and INI to XML
+         """
+         try:
+-            self.anymarkup = importlib.import_module('anymarkup')
++            self.anymarkup: Any = importlib.import_module('anymarkup')
+         except Exception as issue:
+             raise KiwiAnyMarkupPluginError(issue)
+         try:
+@@ -53,25 +54,25 @@ def post_init(self):
+         except Exception as issue:
+             raise KiwiDescriptionInvalid(issue)
+ 
+-    def get_xml_description(self):
++    def get_xml_description(self) -> str:
+         """
+         Return XML description file name
+ 
+         :return: file path name
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         return self.apply_xslt_stylesheets(
+             self.description_markup_processed.name
+         )
+ 
+-    def get_yaml_description(self):
++    def get_yaml_description(self) -> str:
+         """
+         Return YAML description file name
+ 
+         :return: file path name
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         xml_description_xslt_transformed = self.apply_xslt_stylesheets(
+             self.description_markup_processed.name
+diff --git a/kiwi/markup/base.py b/kiwi/markup/base.py
+index d9c6d76d8c..4715f5474d 100644
+--- a/kiwi/markup/base.py
++++ b/kiwi/markup/base.py
+@@ -15,15 +15,12 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+-import os
+ from tempfile import NamedTemporaryFile
+ from lxml import etree
+ 
+ # project
+ from kiwi.defaults import Defaults
+ 
+-from kiwi.exceptions import KiwiDescriptionInvalid
+-
+ 
+ class MarkupBase:
+     """
+@@ -31,38 +28,26 @@ class MarkupBase:
+ 
+     Attributes
+ 
+-    :param string description: description path or content
++    :param str description: description path or content
+     """
+-    def __init__(self, description):
+-        description_is_file = False
+-        if os.path.exists(description):
+-            description_is_file = True
+-        try:
+-            if description_is_file:
+-                self.description = description
+-            else:
+-                self.description_temporary = NamedTemporaryFile()
+-                with open(self.description_temporary.name, 'wb') as outfile:
+-                    outfile.write(description)
+-                self.description = self.description_temporary.name
+-        except Exception as issue:
+-            raise KiwiDescriptionInvalid(issue)
++    def __init__(self, description: str):
++        self.description = description
+         self.post_init()
+ 
+-    def post_init(self):
++    def post_init(self) -> None:
+         """
+         Post initialization method
+         """
+         pass
+ 
+-    def apply_xslt_stylesheets(self, description):
++    def apply_xslt_stylesheets(self, description: str) -> str:
+         """
+         Apply XSLT style sheet rules to an xml file
+ 
+         The result of the XSLT processing is stored in a named
+         temporary file and returned to the caller
+ 
+-        :param string description: path to an XML description file
++        :param str description: path to an XML description file
+         """
+         xslt_transform = etree.XSLT(
+             etree.parse(Defaults.get_xsl_stylesheet_file())
+@@ -74,7 +59,7 @@ def apply_xslt_stylesheets(self, description):
+             )
+         return self.description_xslt_processed.name
+ 
+-    def get_xml_description(self):
++    def get_xml_description(self) -> str:
+         """
+         Return XML description file name
+ 
+@@ -82,7 +67,7 @@ def get_xml_description(self):
+         """
+         raise NotImplementedError
+ 
+-    def get_yaml_description(self):
++    def get_yaml_description(self) -> str:
+         """
+         Return YAML description file name
+ 
+diff --git a/kiwi/markup/xml.py b/kiwi/markup/xml.py
+index bad082c496..522e450b0c 100644
+--- a/kiwi/markup/xml.py
++++ b/kiwi/markup/xml.py
+@@ -25,7 +25,7 @@ class MarkupXML(MarkupBase):
+     """
+     **Implements plain XML markup handling**
+     """
+-    def get_xml_description(self):
++    def get_xml_description(self) -> str:
+         """
+         Return XML description file name
+ 
+@@ -37,7 +37,7 @@ def get_xml_description(self):
+             self.description
+         )
+ 
+-    def get_yaml_description(self):
++    def get_yaml_description(self) -> str:
+         """
+         Conversion into YAML format not supported by base XML markup
+         """
+diff --git a/kiwi/utils/output.py b/kiwi/utils/output.py
+index d5817ccebf..e7586ca7e5 100644
+--- a/kiwi/utils/output.py
++++ b/kiwi/utils/output.py
+@@ -88,7 +88,7 @@ def _color_json(self):
+         Show data in json output format with nice color highlighting
+         """
+         out_file = NamedTemporaryFile()
+-        out_file.write(json.dumps(self.data, sort_keys=True))
++        out_file.write(json.dumps(self.data, sort_keys=True).encode())
+         out_file.flush()
+         pjson_cmd = ''.join(
+             ['cat ', out_file.name, ' | pjson']
+diff --git a/kiwi/xml_description.py b/kiwi/xml_description.py
+index bff10d8fc5..1309cc8fc4 100644
+--- a/kiwi/xml_description.py
++++ b/kiwi/xml_description.py
+@@ -15,6 +15,9 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++from typing import (
++    Dict, Any
++)
+ import os
+ import logging
+ from xml.dom import minidom
+@@ -36,7 +39,6 @@
+     KiwiValidationError,
+     KiwiDescriptionInvalid,
+     KiwiDataStructureError,
+-    KiwiDescriptionConflict,
+     KiwiExtensionError,
+     KiwiCommandNotFound
+ )
+@@ -58,22 +60,19 @@ class XMLDescription:
+ 
+     Attributes
+ 
+-    :param string description: path to description file
+-    :param string derived_from: path to base description file
+-    :param string xml_content: XML description data as content string
++    :param str description: path to description file
++    :param str derived_from: path to base description file
+     """
+-    def __init__(self, description=None, derived_from=None, xml_content=None):
+-        if description and xml_content:
+-            raise KiwiDescriptionConflict(
+-                'description and xml_content are mutually exclusive'
+-            )
+-        self.markup = Markup.new(description or xml_content)
++    def __init__(
++        self, description: str = '', derived_from: str = None
++    ):
++        self.markup = Markup.new(description)
+         self.description = self.markup.get_xml_description()
+         self.derived_from = derived_from
+         self.description_origin = description
+-        self.extension_data = {}
++        self.extension_data: Dict = {}
+ 
+-    def load(self):
++    def load(self) -> Any:
+         """
+         Read XML description, validate it against the schema
+         and the schematron rules and pass it to the
+@@ -179,18 +178,17 @@ def load(self):
+ 
+         return parse_result
+ 
+-    def get_extension_xml_data(self, namespace_name):
++    def get_extension_xml_data(self, namespace_name: str) -> Any:
+         """
+         Return the xml etree parse result for the specified extension namespace
+ 
+-        :param string namespace_name: name of the extension namespace
++        :param str namespace_name: name of the extension namespace
+ 
+         :return: result of etree.parse
+ 
+         :rtype: object
+         """
+-        if namespace_name in self.extension_data:
+-            return self.extension_data[namespace_name]
++        return self.extension_data.get(namespace_name)
+ 
+     @staticmethod
+     def _get_relaxng_validation_details(
+diff --git a/kiwi/xml_state.py b/kiwi/xml_state.py
+index 91283a6716..f3feb9480f 100644
+--- a/kiwi/xml_state.py
++++ b/kiwi/xml_state.py
+@@ -15,6 +15,9 @@
+ # You should have received a copy of the GNU General Public License
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
++from typing import (
++    List, Optional, Any, Dict
++)
+ import re
+ import logging
+ import copy
+@@ -38,6 +41,31 @@
+ 
+ log = logging.getLogger('kiwi')
+ 
++description_type = namedtuple(
++    'description_type', ['author', 'contact', 'specification']
++)
++
++package_type = namedtuple(
++    'package_type', ['packages_section', 'package_section']
++)
++
++size_type = namedtuple(
++    'size_type', ['mbytes', 'additive']
++)
++
++volume_type = namedtuple(
++    'volume_type', [
++        'name',
++        'size',
++        'realpath',
++        'mountpoint',
++        'fullsize',
++        'label',
++        'attributes',
++        'is_root_volume'
++    ]
++)
++
+ 
+ class XMLState:
+     """
+@@ -47,9 +75,12 @@ class XMLState:
+     :param list profiles: list of used profiles
+     :param object build_type: build <type> section reference
+     """
+-    def __init__(self, xml_data, profiles=None, build_type=None):
+-        self.root_partition_uuid = None
+-        self.root_filesystem_uuid = None
++    def __init__(
++        self, xml_data: Any, profiles: List = None,
++        build_type: Any = None
++    ):
++        self.root_partition_uuid: Optional[str] = None
++        self.root_filesystem_uuid: Optional[str] = None
+         self.host_architecture = platform.machine()
+         self.xml_data = xml_data
+         self.profiles = self._used_profiles(profiles)
+@@ -57,7 +88,7 @@ def __init__(self, xml_data, profiles=None, build_type=None):
+             build_type
+         )
+ 
+-    def get_preferences_sections(self):
++    def get_preferences_sections(self) -> List:
+         """
+         All preferences sections for the selected profiles that match the
+         host architecture
+@@ -72,18 +103,16 @@ def get_preferences_sections(self):
+                 preferences_list.append(preferences)
+         return preferences_list
+ 
+-    def get_description_section(self):
++    def get_description_section(self) -> description_type:
+         """
+         The description section
+ 
+-        :return: description_type tuple providing the elements
++        :return:
++            description_type tuple providing the elements
+             author contact and specification
+ 
+         :rtype: tuple
+         """
+-        description_type = namedtuple(
+-            'description_type', ['author', 'contact', 'specification']
+-        )
+         description = self.xml_data.get_description()[0]
+         return description_type(
+             author=description.get_author()[0],
+@@ -91,7 +120,7 @@ def get_description_section(self):
+             specification=description.get_specification()[0].strip()
+         )
+ 
+-    def get_users_sections(self):
++    def get_users_sections(self) -> List:
+         """
+         All users sections for the selected profiles
+ 
+@@ -103,7 +132,7 @@ def get_users_sections(self):
+             self.xml_data.get_users()
+         )
+ 
+-    def get_build_type_name(self):
++    def get_build_type_name(self) -> str:
+         """
+         Default build type name
+ 
+@@ -113,7 +142,7 @@ def get_build_type_name(self):
+         """
+         return self.build_type.get_image()
+ 
+-    def get_image_version(self):
++    def get_image_version(self) -> Optional[str]:
+         """
+         Image version from preferences section.
+ 
+@@ -129,8 +158,9 @@ def get_image_version(self):
+             version = preferences.get_version()
+             if version:
+                 return version[0]
++        return None
+ 
+-    def get_initrd_system(self):
++    def get_initrd_system(self) -> str:
+         """
+         Name of initrd system to use
+ 
+@@ -155,7 +185,7 @@ def get_initrd_system(self):
+             initrd_system = self.build_type.get_initrd_system()
+         return initrd_system
+ 
+-    def get_locale(self):
++    def get_locale(self) -> Optional[List]:
+         """
+         Gets list of locale names if configured. Takes
+         the first locale setup from the existing preferences
+@@ -169,8 +199,9 @@ def get_locale(self):
+             locale_section = preferences.get_locale()
+             if locale_section:
+                 return locale_section[0].split(',')
++        return None
+ 
+-    def get_rpm_locale(self):
++    def get_rpm_locale(self) -> Optional[List]:
+         """
+         Gets list of locale names to filter out by rpm
+         if rpm-locale-filtering is switched on the
+@@ -189,8 +220,9 @@ def get_rpm_locale(self):
+                 for locale in configured_locale:
+                     rpm_locale.append(locale)
+             return rpm_locale
++        return None
+ 
+-    def get_rpm_locale_filtering(self):
++    def get_rpm_locale_filtering(self) -> bool:
+         """
+         Gets the rpm-locale-filtering configuration flag. Returns
+         False if not present.
+@@ -205,7 +237,7 @@ def get_rpm_locale_filtering(self):
+                 return locale_filtering[0]
+         return False
+ 
+-    def get_rpm_excludedocs(self):
++    def get_rpm_excludedocs(self) -> bool:
+         """
+         Gets the rpm-excludedocs configuration flag. Returns
+         False if not present.
+@@ -220,7 +252,7 @@ def get_rpm_excludedocs(self):
+                 return exclude_docs[0]
+         return False
+ 
+-    def get_rpm_check_signatures(self):
++    def get_rpm_check_signatures(self) -> bool:
+         """
+         Gets the rpm-check-signatures configuration flag. Returns
+         False if not present.
+@@ -235,7 +267,7 @@ def get_rpm_check_signatures(self):
+                 return check_signatures[0]
+         return False
+ 
+-    def get_package_manager(self):
++    def get_package_manager(self) -> Optional[str]:
+         """
+         Get configured package manager from selected preferences section
+ 
+@@ -247,8 +279,9 @@ def get_package_manager(self):
+             package_manager = preferences.get_packagemanager()
+             if package_manager:
+                 return package_manager[0]
++        return None
+ 
+-    def get_packages_sections(self, section_types):
++    def get_packages_sections(self, section_types: List) -> List:
+         """
+         List of packages sections matching given section type(s)
+ 
+@@ -268,7 +301,7 @@ def get_packages_sections(self, section_types):
+                 result.append(packages)
+         return result
+ 
+-    def package_matches_host_architecture(self, package):
++    def package_matches_host_architecture(self, package: Any) -> bool:
+         """
+         Tests if the given package section is applicable for the current host
+         architecture. If no architecture is specified within the section
+@@ -284,7 +317,7 @@ def package_matches_host_architecture(self, package):
+         """
+         return self._section_matches_host_architecture(package)
+ 
+-    def profile_matches_host_architecture(self, profile):
++    def profile_matches_host_architecture(self, profile: Any) -> bool:
+         """
+         Tests if the given profile section is applicable for the current host
+         architecture. If no architecture is specified within the section
+@@ -300,11 +333,11 @@ def profile_matches_host_architecture(self, profile):
+         """
+         return self._section_matches_host_architecture(profile)
+ 
+-    def preferences_matches_host_architecture(self, preferences):
++    def preferences_matches_host_architecture(self, preferences: Any) -> bool:
+         """
+-        Tests if the given preferences section is applicable for the current host
+-        architecture. If no architecture is specified within the section
+-        it is considered as a match returning True.
++        Tests if the given preferences section is applicable for the
++        current host architecture. If no architecture is specified within
++        the section it is considered as a match returning True.
+ 
+         Note: The XML section pointer must provide an arch attribute
+ 
+@@ -316,7 +349,9 @@ def preferences_matches_host_architecture(self, preferences):
+         """
+         return self._section_matches_host_architecture(preferences)
+ 
+-    def get_package_sections(self, packages_sections):
++    def get_package_sections(
++        self, packages_sections: List
++    ) -> List[package_type]:
+         """
+         List of package sections from the given packages sections.
+         Each list element contains a tuple with the <package> section
+@@ -336,9 +371,6 @@ def get_package_sections(self, packages_sections):
+ 
+         :rtype: list
+         """
+-        package_type = namedtuple(
+-            'package_type', ['packages_section', 'package_section']
+-        )
+         result = []
+         if packages_sections:
+             for packages_section in packages_sections:
+@@ -354,7 +386,7 @@ def get_package_sections(self, packages_sections):
+                             )
+         return result
+ 
+-    def get_to_become_deleted_packages(self, force=True):
++    def get_to_become_deleted_packages(self, force: bool = True) -> List:
+         """
+         List of package names from the type="delete" or type="uninstall"
+         packages section(s)
+@@ -378,7 +410,7 @@ def get_to_become_deleted_packages(self, force=True):
+                 result.append(package.package_section.get_name())
+         return sorted(list(set(result)))
+ 
+-    def get_bootstrap_packages_sections(self):
++    def get_bootstrap_packages_sections(self) -> List:
+         """
+         List of packages sections matching type="bootstrap"
+ 
+@@ -388,7 +420,7 @@ def get_bootstrap_packages_sections(self):
+         """
+         return self.get_packages_sections(['bootstrap'])
+ 
+-    def get_image_packages_sections(self):
++    def get_image_packages_sections(self) -> List:
+         """
+         List of packages sections matching type="image"
+ 
+@@ -398,7 +430,7 @@ def get_image_packages_sections(self):
+         """
+         return self.get_packages_sections(['image'])
+ 
+-    def get_bootstrap_packages(self, plus_packages=None):
++    def get_bootstrap_packages(self, plus_packages: List = None) -> List:
+         """
+         List of package names from the type="bootstrap" packages section(s)
+ 
+@@ -426,7 +458,7 @@ def get_bootstrap_packages(self, plus_packages=None):
+             result += plus_packages
+         return sorted(list(set(result)))
+ 
+-    def get_system_packages(self):
++    def get_system_packages(self) -> List:
+         """
+         List of package names from the packages sections matching
+         type="image" and type=build_type
+@@ -447,7 +479,7 @@ def get_system_packages(self):
+                 result.append(package.package_section.get_name().strip())
+         return sorted(list(set(result)))
+ 
+-    def get_bootstrap_archives(self):
++    def get_bootstrap_archives(self) -> List:
+         """
+         List of archive names from the type="bootstrap" packages section(s)
+ 
+@@ -465,7 +497,7 @@ def get_bootstrap_archives(self):
+                         result.append(archive.get_name().strip())
+         return sorted(result)
+ 
+-    def get_system_archives(self):
++    def get_system_archives(self) -> List:
+         """
+         List of archive names from the packages sections matching
+         type="image" and type=build_type
+@@ -483,7 +515,7 @@ def get_system_archives(self):
+                 result.append(archive.get_name().strip())
+         return sorted(result)
+ 
+-    def get_system_ignore_packages(self):
++    def get_system_ignore_packages(self) -> List:
+         """
+         List of ignore package names from the packages sections matching
+         type="image" and type=build_type
+@@ -502,7 +534,7 @@ def get_system_ignore_packages(self):
+                     result.append(package.get_name().strip())
+         return sorted(result)
+ 
+-    def get_collection_type(self, section_type='image'):
++    def get_collection_type(self, section_type: str = 'image') -> str:
+         """
+         Collection type from packages sections matching given section
+         type.
+@@ -510,7 +542,7 @@ def get_collection_type(self, section_type='image'):
+         If no collection type is specified the default collection
+         type is set to: onlyRequired
+ 
+-        :param string section_type: type name from packages section
++        :param str section_type: type name from packages section
+ 
+         :return: collection type name
+ 
+@@ -527,7 +559,7 @@ def get_collection_type(self, section_type='image'):
+                 break
+         return collection_type
+ 
+-    def get_bootstrap_collection_type(self):
++    def get_bootstrap_collection_type(self) -> str:
+         """
+         Collection type for packages sections matching type="bootstrap"
+ 
+@@ -537,7 +569,7 @@ def get_bootstrap_collection_type(self):
+         """
+         return self.get_collection_type('bootstrap')
+ 
+-    def get_system_collection_type(self):
++    def get_system_collection_type(self) -> str:
+         """
+         Collection type for packages sections matching type="image"
+ 
+@@ -547,7 +579,7 @@ def get_system_collection_type(self):
+         """
+         return self.get_collection_type('image')
+ 
+-    def get_collections(self, section_type='image'):
++    def get_collections(self, section_type: str = 'image') -> List:
+         """
+         List of collection names from the packages sections matching
+         type=section_type and type=build_type
+@@ -565,7 +597,7 @@ def get_collections(self, section_type='image'):
+                 result.append(collection.get_name())
+         return list(set(result))
+ 
+-    def get_bootstrap_collections(self):
++    def get_bootstrap_collections(self) -> List:
+         """
+         List of collection names from the packages sections
+         matching type="bootstrap"
+@@ -576,7 +608,7 @@ def get_bootstrap_collections(self):
+         """
+         return self.get_collections('bootstrap')
+ 
+-    def get_system_collections(self):
++    def get_system_collections(self) -> List:
+         """
+         List of collection names from the packages sections
+         matching type="image"
+@@ -587,12 +619,12 @@ def get_system_collections(self):
+         """
+         return self.get_collections('image')
+ 
+-    def get_products(self, section_type='image'):
++    def get_products(self, section_type: str = 'image') -> List:
+         """
+         List of product names from the packages sections matching
+         type=section_type and type=build_type
+ 
+-        :param string section_type: type name from packages section
++        :param str section_type: type name from packages section
+ 
+         :return: product names
+ 
+@@ -607,7 +639,7 @@ def get_products(self, section_type='image'):
+                 result.append(product.get_name())
+         return list(set(result))
+ 
+-    def get_bootstrap_products(self):
++    def get_bootstrap_products(self) -> List:
+         """
+         List of product names from the packages sections
+         matching type="bootstrap"
+@@ -618,7 +650,7 @@ def get_bootstrap_products(self):
+         """
+         return self.get_products('bootstrap')
+ 
+-    def get_system_products(self):
++    def get_system_products(self) -> List:
+         """
+         List of product names from the packages sections
+         matching type="image"
+@@ -629,7 +661,7 @@ def get_system_products(self):
+         """
+         return self.get_products('image')
+ 
+-    def is_xen_server(self):
++    def is_xen_server(self) -> bool:
+         """
+         Check if build type domain setup specifies a Xen Server (dom0)
+ 
+@@ -639,7 +671,7 @@ def is_xen_server(self):
+         """
+         return self.build_type.get_xen_server()
+ 
+-    def is_xen_guest(self):
++    def is_xen_guest(self) -> bool:
+         """
+         Check if build type setup specifies a Xen Guest (domX)
+         The check is based on the architecture, the firmware and
+@@ -670,7 +702,7 @@ def is_xen_guest(self):
+             return True
+         return False
+ 
+-    def get_build_type_system_disk_section(self):
++    def get_build_type_system_disk_section(self) -> Any:
+         """
+         First system disk section from the build type section
+ 
+@@ -681,8 +713,9 @@ def get_build_type_system_disk_section(self):
+         systemdisk_sections = self.build_type.get_systemdisk()
+         if systemdisk_sections:
+             return systemdisk_sections[0]
++        return None
+ 
+-    def get_build_type_machine_section(self):
++    def get_build_type_machine_section(self) -> Any:
+         """
+         First machine section from the build type section
+ 
+@@ -693,8 +726,9 @@ def get_build_type_machine_section(self):
+         machine_sections = self.build_type.get_machine()
+         if machine_sections:
+             return machine_sections[0]
++        return None
+ 
+-    def get_build_type_vagrant_config_section(self):
++    def get_build_type_vagrant_config_section(self) -> Any:
+         """
+         First vagrantconfig section from the build type section
+ 
+@@ -705,13 +739,14 @@ def get_build_type_vagrant_config_section(self):
+         vagrant_config_sections = self.build_type.get_vagrantconfig()
+         if vagrant_config_sections:
+             return vagrant_config_sections[0]
++        return None
+ 
+-    def get_vagrant_config_virtualbox_guest_additions(self):
++    def get_vagrant_config_virtualbox_guest_additions(self) -> bool:
+         """
+         Attribute virtualbox_guest_additions_present from the first
+         vagrantconfig section.
+ 
+-        :return: ``<vagrantconfig virtualbox_guest_additions_present=>`` value
++        :return: True|False
+ 
+         :rtype: bool
+         """
+@@ -721,7 +756,7 @@ def get_vagrant_config_virtualbox_guest_additions(self):
+         else:
+             return vagrant_config_sections.virtualbox_guest_additions_present
+ 
+-    def get_build_type_vmdisk_section(self):
++    def get_build_type_vmdisk_section(self) -> Any:
+         """
+         First vmdisk section from the first machine section in the
+         build type section
+@@ -735,8 +770,9 @@ def get_build_type_vmdisk_section(self):
+             vmdisk_sections = machine_section.get_vmdisk()
+             if vmdisk_sections:
+                 return vmdisk_sections[0]
++        return None
+ 
+-    def get_build_type_vmnic_entries(self):
++    def get_build_type_vmnic_entries(self) -> List:
+         """
+         vmnic section(s) from the first machine section in the
+         build type section
+@@ -751,7 +787,7 @@ def get_build_type_vmnic_entries(self):
+         else:
+             return []
+ 
+-    def get_build_type_vmdvd_section(self):
++    def get_build_type_vmdvd_section(self) -> Any:
+         """
+         First vmdvd section from the first machine section in the
+         build type section
+@@ -765,8 +801,9 @@ def get_build_type_vmdvd_section(self):
+             vmdvd_sections = machine_section.get_vmdvd()
+             if vmdvd_sections:
+                 return vmdvd_sections[0]
++        return None
+ 
+-    def get_build_type_vmconfig_entries(self):
++    def get_build_type_vmconfig_entries(self) -> List:
+         """
+         List of vmconfig-entry section values from the first
+         machine section in the build type section
+@@ -783,7 +820,7 @@ def get_build_type_vmconfig_entries(self):
+ 
+         return []
+ 
+-    def get_build_type_bootloader_section(self):
++    def get_build_type_bootloader_section(self) -> Any:
+         """
+         First bootloader section from the build type section
+ 
+@@ -794,69 +831,74 @@ def get_build_type_bootloader_section(self):
+         bootloader_sections = self.build_type.get_bootloader()
+         if bootloader_sections:
+             return bootloader_sections[0]
++        return None
+ 
+-    def get_build_type_bootloader_name(self):
++    def get_build_type_bootloader_name(self) -> str:
+         """
+         Return bootloader name for selected build type
+ 
+         :return: bootloader name
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         return bootloader.get_name() if bootloader else \
+             Defaults.get_default_bootloader()
+ 
+-    def get_build_type_bootloader_console(self):
++    def get_build_type_bootloader_console(self) -> Optional[str]:
+         """
+         Return bootloader console setting for selected build type
+ 
+         :return: console string
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         if bootloader:
+             return bootloader.get_console()
++        return None
+ 
+-    def get_build_type_bootloader_serial_line_setup(self):
++    def get_build_type_bootloader_serial_line_setup(self) -> Optional[str]:
+         """
+         Return bootloader serial line setup parameters for the
+         selected build type
+ 
+         :return: serial line setup
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         if bootloader:
+             return bootloader.get_serial_line()
++        return None
+ 
+-    def get_build_type_bootloader_timeout(self):
++    def get_build_type_bootloader_timeout(self) -> Optional[str]:
+         """
+         Return bootloader timeout setting for selected build type
+ 
+         :return: timeout string
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         if bootloader:
+             return bootloader.get_timeout()
++        return None
+ 
+-    def get_build_type_bootloader_timeout_style(self):
++    def get_build_type_bootloader_timeout_style(self) -> Optional[str]:
+         """
+         Return bootloader timeout style setting for selected build type
+ 
+         :return: timeout_style string
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         if bootloader:
+             return bootloader.get_timeout_style()
++        return None
+ 
+-    def get_build_type_bootloader_targettype(self):
++    def get_build_type_bootloader_targettype(self) -> Optional[str]:
+         """
+         Return bootloader target type setting. Only relevant for
+         the zipl bootloader because zipl is installed differently
+@@ -864,13 +906,14 @@ def get_build_type_bootloader_targettype(self):
+ 
+         :return: target type string
+ 
+-        :rtype: string
++        :rtype: str
+         """
+         bootloader = self.get_build_type_bootloader_section()
+         if bootloader:
+             return bootloader.get_targettype()
++        return None
+ 
+-    def get_build_type_oemconfig_section(self):
++    def get_build_type_oemconfig_section(self) -> Any:
+         """
+         First oemconfig section from the build type section
+ 
+@@ -881,8 +924,9 @@ def get_build_type_oemconfig_section(self):
+         oemconfig_sections = self.build_type.get_oemconfig()
+         if oemconfig_sections:
+             return oemconfig_sections[0]
++        return None
+ 
+-    def get_oemconfig_oem_resize(self):
++    def get_oemconfig_oem_resize(self) -> bool:
+         """
+         State value to activate/deactivate disk resize. Returns a
+         boolean value if specified or True to set resize on by default
+@@ -897,7 +941,7 @@ def get_oemconfig_oem_resize(self):
+         else:
+             return True
+ 
+-    def get_oemconfig_oem_multipath_scan(self):
++    def get_oemconfig_oem_multipath_scan(self) -> bool:
+         """
+         State value to activate multipath maps. Returns a boolean
+         value if specified or False
+@@ -911,7 +955,7 @@ def get_oemconfig_oem_multipath_scan(self):
+             return oemconfig.get_oem_multipath_scan()[0]
+         return False
+ 
+-    def get_oemconfig_swap_mbytes(self):
++    def get_oemconfig_swap_mbytes(self) -> Optional[int]:
+         """
+         Return swapsize in MB if requested or None
+ 
+@@ -931,8 +975,9 @@ def get_oemconfig_swap_mbytes(self):
+                     return swapsize[0]
+                 else:
+                     return Defaults.get_swapsize_mbytes()
++        return None
+ 
+-    def get_oemconfig_swap_name(self):
++    def get_oemconfig_swap_name(self) -> str:
+         """
+         Return the swap space name
+ 
+@@ -954,7 +999,7 @@ def get_oemconfig_swap_name(self):
+             return oemconfig.get_oem_swapname()[0]
+         return 'LVSwap'
+ 
+-    def get_build_type_containerconfig_section(self):
++    def get_build_type_containerconfig_section(self) -> Any:
+         """
+         First containerconfig section from the build type section
+ 
+@@ -965,8 +1010,11 @@ def get_build_type_containerconfig_section(self):
+         container_config_sections = self.build_type.get_containerconfig()
+         if container_config_sections:
+             return container_config_sections[0]
++        return None
+ 
+-    def get_build_type_size(self, include_unpartitioned=False):
++    def get_build_type_size(
++        self, include_unpartitioned: bool = False
++    ) -> Optional[size_type]:
+         """
+         Size information from the build type section.
+         If no unit is set the value is treated as mbytes
+@@ -988,14 +1036,12 @@ def get_build_type_size(self, include_unpartitioned=False):
+                 value -= unpartitioned
+             if unit == 'G':
+                 value *= 1024
+-            size_type = namedtuple(
+-                'size_type', ['mbytes', 'additive']
+-            )
+             return size_type(
+                 mbytes=value, additive=additive
+             )
++        return None
+ 
+-    def get_build_type_unpartitioned_bytes(self):
++    def get_build_type_unpartitioned_bytes(self) -> int:
+         """
+         Size of the unpartitioned area for image in megabytes
+ 
+@@ -1010,7 +1056,7 @@ def get_build_type_unpartitioned_bytes(self):
+             return StringToSize.to_bytes('{0}{1}'.format(unpartitioned, unit))
+         return 0
+ 
+-    def get_disk_start_sector(self):
++    def get_disk_start_sector(self) -> int:
+         """
+         First disk sector number to be used by the first disk partition.
+ 
+@@ -1023,7 +1069,7 @@ def get_disk_start_sector(self):
+             disk_start_sector = Defaults.get_default_disk_start_sector()
+         return disk_start_sector
+ 
+-    def get_build_type_spare_part_size(self):
++    def get_build_type_spare_part_size(self) -> Optional[int]:
+         """
+         Size information for the spare_part size from the build
+         type. If no unit is set the value is treated as mbytes
+@@ -1035,8 +1081,9 @@ def get_build_type_spare_part_size(self):
+         spare_part_size = self.build_type.get_spare_part()
+         if spare_part_size:
+             return self._to_mega_byte(spare_part_size)
++        return None
+ 
+-    def get_build_type_spare_part_fs_attributes(self):
++    def get_build_type_spare_part_fs_attributes(self) -> Optional[List]:
+         """
+         Build type specific list of filesystem attributes applied to
+         the spare partition.
+@@ -1048,8 +1095,9 @@ def get_build_type_spare_part_fs_attributes(self):
+         spare_part_attributes = self.build_type.get_spare_part_fs_attributes()
+         if spare_part_attributes:
+             return spare_part_attributes.strip().split(',')
++        return None
+ 
+-    def get_build_type_format_options(self):
++    def get_build_type_format_options(self) -> Dict:
+         """
+         Disk format options returned as a dictionary
+ 
+@@ -1068,7 +1116,7 @@ def get_build_type_format_options(self):
+                     result[key_value_list[0]] = None
+         return result
+ 
+-    def get_volume_group_name(self):
++    def get_volume_group_name(self) -> str:
+         """
+         Volume group name from selected <systemdisk> section
+ 
+@@ -1084,7 +1132,7 @@ def get_volume_group_name(self):
+             volume_group_name = Defaults.get_default_volume_group_name()
+         return volume_group_name
+ 
+-    def get_users(self):
++    def get_users(self) -> List:
+         """
+         List of configured users.
+ 
+@@ -1104,7 +1152,7 @@ def get_users(self):
+ 
+         return users_list
+ 
+-    def get_user_groups(self, user_name):
++    def get_user_groups(self, user_name) -> List:
+         """
+         List of group names matching specified user
+ 
+@@ -1134,7 +1182,7 @@ def get_user_groups(self, user_name):
+ 
+         return result_group_list
+ 
+-    def get_container_config(self):
++    def get_container_config(self) -> Dict:
+         """
+         Dictionary of containerconfig information
+ 
+@@ -1175,14 +1223,14 @@ def get_container_config(self):
+ 
+         return container_config
+ 
+-    def set_container_config_tag(self, tag):
++    def set_container_config_tag(self, tag: str) -> None:
+         """
+         Set new tag name in containerconfig section
+ 
+         In order to set a new tag value an existing containerconfig and
+         tag setup is required
+ 
+-        :param string tag: tag name
++        :param str tag: tag name
+         """
+         container_config_section = self.get_build_type_containerconfig_section()
+         if container_config_section and container_config_section.get_tag():
+@@ -1197,7 +1245,7 @@ def set_container_config_tag(self, tag):
+             ''')
+             log.warning(message.format(tag))
+ 
+-    def add_container_config_label(self, label_name, value):
++    def add_container_config_label(self, label_name: str, value: str) -> None:
+         """
+         Adds a new label in the containerconfig section, if a label with the
+         same name is already defined in containerconfig it gets overwritten by
+@@ -1240,7 +1288,7 @@ def add_container_config_label(self, label_name, value):
+ 
+         container_config_section.set_labels(labels)
+ 
+-    def get_volumes(self):
++    def get_volumes(self) -> List[volume_type]:
+         """
+         List of configured systemdisk volumes.
+ 
+@@ -1274,26 +1322,12 @@ def get_volumes(self):
+ 
+         :rtype: list
+         """
+-        volume_type_list = []
++        volume_type_list: List[volume_type] = []
+         systemdisk_section = self.get_build_type_system_disk_section()
+         swap_mbytes = self.get_oemconfig_swap_mbytes()
+         swap_name = self.get_oemconfig_swap_name()
+         if not systemdisk_section:
+             return volume_type_list
+-
+-        volume_type = namedtuple(
+-            'volume_type', [
+-                'name',
+-                'size',
+-                'realpath',
+-                'mountpoint',
+-                'fullsize',
+-                'label',
+-                'attributes',
+-                'is_root_volume'
+-            ]
+-        )
+-
+         volumes = systemdisk_section.get_volume()
+         have_root_volume_setup = False
+         have_full_size_volume = False
+@@ -1413,7 +1447,7 @@ def get_volumes(self):
+ 
+         return volume_type_list
+ 
+-    def get_volume_management(self):
++    def get_volume_management(self) -> Optional[str]:
+         """
+         Provides information which volume management system is used
+ 
+@@ -1438,7 +1472,7 @@ def get_volume_management(self):
+             volume_management = 'lvm'
+         return volume_management
+ 
+-    def get_drivers_list(self):
++    def get_drivers_list(self) -> List:
+         """
+         List of driver names from all drivers sections matching
+         configured profiles
+@@ -1457,12 +1491,12 @@ def get_drivers_list(self):
+                     result.append(file_section.get_name())
+         return result
+ 
+-    def get_strip_list(self, section_type):
++    def get_strip_list(self, section_type: str) -> List:
+         """
+         List of strip names matching the given section type
+         and profiles
+ 
+-        :param string section_type: type name from packages section
++        :param str section_type: type name from packages section
+ 
+         :return: strip names
+ 
+@@ -1479,7 +1513,7 @@ def get_strip_list(self, section_type):
+                         result.append(file_section.get_name())
+         return result
+ 
+-    def get_strip_files_to_delete(self):
++    def get_strip_files_to_delete(self) -> List:
+         """
+         Items to delete from strip section
+ 
+@@ -1489,7 +1523,7 @@ def get_strip_files_to_delete(self):
+         """
+         return self.get_strip_list('delete')
+ 
+-    def get_strip_tools_to_keep(self):
++    def get_strip_tools_to_keep(self) -> List:
+         """
+         Tools to keep from strip section
+ 
+@@ -1499,7 +1533,7 @@ def get_strip_tools_to_keep(self):
+         """
+         return self.get_strip_list('tools')
+ 
+-    def get_strip_libraries_to_keep(self):
++    def get_strip_libraries_to_keep(self) -> List:
+         """
+         Libraries to keep from strip section
+ 
+@@ -1509,7 +1543,7 @@ def get_strip_libraries_to_keep(self):
+         """
+         return self.get_strip_list('libs')
+ 
+-    def get_repository_sections(self):
++    def get_repository_sections(self) -> List:
+         """
+         List of all repository sections matching configured profiles
+ 
+@@ -1521,7 +1555,7 @@ def get_repository_sections(self):
+             self.xml_data.get_repository()
+         )
+ 
+-    def get_repository_sections_used_for_build(self):
++    def get_repository_sections_used_for_build(self) -> List:
+         """
+         List of all repositorys sections used to build the image and
+         matching configured profiles.
+@@ -1535,7 +1569,7 @@ def get_repository_sections_used_for_build(self):
+             repo for repo in repos if not repo.get_imageonly()
+         )
+ 
+-    def get_repository_sections_used_in_image(self):
++    def get_repository_sections_used_in_image(self) -> List:
+         """
+         List of all repositorys sections to be configured in the resulting
+         image matching configured profiles.
+@@ -1550,36 +1584,39 @@ def get_repository_sections_used_in_image(self):
+             if repo.get_imageinclude() or repo.get_imageonly()
+         )
+ 
+-    def delete_repository_sections(self):
++    def delete_repository_sections(self) -> None:
+         """
+         Delete all repository sections matching configured profiles
+         """
+         self.xml_data.set_repository([])
+ 
+-    def delete_repository_sections_used_for_build(self):
++    def delete_repository_sections_used_for_build(self) -> None:
+         """
+         Delete all repository sections used to build the image matching
+         configured profiles
+         """
+         used_for_build = self.get_repository_sections_used_for_build()
+         all_repos = self.get_repository_sections()
+-        self.xml_data.set_repository([
+-            repo for repo in all_repos if repo not in used_for_build
+-        ])
++        self.xml_data.set_repository(
++            [
++                repo for repo in all_repos if repo not in used_for_build
++            ]
++        )
+ 
+     def set_repository(
+-        self, repo_source, repo_type, repo_alias, repo_prio,
+-        repo_imageinclude=False, repo_package_gpgcheck=None
+-    ):
++        self, repo_source: str, repo_type: str, repo_alias: str,
++        repo_prio: str, repo_imageinclude: bool = False,
++        repo_package_gpgcheck: Optional[bool] = None
++    ) -> None:
+         """
+         Overwrite repository data of the first repository
+ 
+-        :param string repo_source: repository URI
+-        :param string repo_type: type name defined by schema
+-        :param string repo_alias: alias name
+-        :param string repo_prio: priority number, package manager specific
+-        :param boolean repo_imageinclude: setup repository inside of the image
+-        :param boolean repo_package_gpgcheck: enable/disable package gpg checks
++        :param str repo_source: repository URI
++        :param str repo_type: type name defined by schema
++        :param str repo_alias: alias name
++        :param str repo_prio: priority number, package manager specific
++        :param bool repo_imageinclude: setup repository inside of the image
++        :param bool repo_package_gpgcheck: enable/disable package gpg checks
+         """
+         repository_sections = self.get_repository_sections()
+         if repository_sections:
+@@ -1598,35 +1635,38 @@ def set_repository(
+                 repository.set_package_gpgcheck(repo_package_gpgcheck)
+ 
+     def add_repository(
+-        self, repo_source, repo_type, repo_alias, repo_prio,
+-        repo_imageinclude=False, repo_package_gpgcheck=None
+-    ):
++        self, repo_source: str, repo_type: str, repo_alias: str,
++        repo_prio: str, repo_imageinclude: bool = False,
++        repo_package_gpgcheck: Optional[bool] = None
++    ) -> None:
+         """
+         Add a new repository section at the end of the list
+ 
+-        :param string repo_source: repository URI
+-        :param string repo_type: type name defined by schema
+-        :param string repo_alias: alias name
+-        :param string repo_prio: priority number, package manager specific
+-        :param boolean repo_imageinclude: setup repository inside of the image
+-        :param boolean repo_package_gpgcheck: enable/disable package gpg checks
++        :param str repo_source: repository URI
++        :param str repo_type: type name defined by schema
++        :param str repo_alias: alias name
++        :param str repo_prio: priority number, package manager specific
++        :param bool repo_imageinclude: setup repository inside of the image
++        :param bool repo_package_gpgcheck: enable/disable package gpg checks
+         """
++        priority_number: Optional[int] = None
+         try:
+-            repo_prio = int(repo_prio)
++            priority_number = int(repo_prio)
+         except Exception:
+-            repo_prio = None
++            pass
++
+         self.xml_data.add_repository(
+             xml_parse.repository(
+                 type_=repo_type,
+                 alias=repo_alias,
+-                priority=repo_prio,
++                priority=priority_number,
+                 source=xml_parse.source(path=repo_source),
+                 imageinclude=repo_imageinclude,
+                 package_gpgcheck=repo_package_gpgcheck
+             )
+         )
+ 
+-    def copy_displayname(self, target_state):
++    def copy_displayname(self, target_state: Any) -> None:
+         """
+         Copy image displayname from this xml state to the target xml state
+ 
+@@ -1636,7 +1676,7 @@ def copy_displayname(self, target_state):
+         if displayname:
+             target_state.xml_data.set_displayname(displayname)
+ 
+-    def copy_name(self, target_state):
++    def copy_name(self, target_state: Any) -> None:
+         """
+         Copy image name from this xml state to the target xml state
+ 
+@@ -1646,7 +1686,7 @@ def copy_name(self, target_state):
+             self.xml_data.get_name()
+         )
+ 
+-    def copy_drivers_sections(self, target_state):
++    def copy_drivers_sections(self, target_state: Any) -> None:
+         """
+         Copy drivers sections from this xml state to the target xml state
+ 
+@@ -1659,7 +1699,7 @@ def copy_drivers_sections(self, target_state):
+             for drivers_section in drivers_sections:
+                 target_state.xml_data.add_drivers(drivers_section)
+ 
+-    def copy_systemdisk_section(self, target_state):
++    def copy_systemdisk_section(self, target_state: Any) -> None:
+         """
+         Copy systemdisk sections from this xml state to the target xml state
+ 
+@@ -1671,7 +1711,7 @@ def copy_systemdisk_section(self, target_state):
+                 [systemdisk_section]
+             )
+ 
+-    def copy_strip_sections(self, target_state):
++    def copy_strip_sections(self, target_state: Any) -> None:
+         """
+         Copy strip sections from this xml state to the target xml state
+ 
+@@ -1684,7 +1724,7 @@ def copy_strip_sections(self, target_state):
+             for strip_section in strip_sections:
+                 target_state.xml_data.add_strip(strip_section)
+ 
+-    def copy_machine_section(self, target_state):
++    def copy_machine_section(self, target_state: Any) -> None:
+         """
+         Copy machine sections from this xml state to the target xml state
+ 
+@@ -1696,7 +1736,7 @@ def copy_machine_section(self, target_state):
+                 [machine_section]
+             )
+ 
+-    def copy_bootloader_section(self, target_state):
++    def copy_bootloader_section(self, target_state: Any) -> None:
+         """
+         Copy bootloader section from this xml state to the target xml state
+ 
+@@ -1708,7 +1748,7 @@ def copy_bootloader_section(self, target_state):
+                 [bootloader_section]
+             )
+ 
+-    def copy_oemconfig_section(self, target_state):
++    def copy_oemconfig_section(self, target_state: Any) -> None:
+         """
+         Copy oemconfig sections from this xml state to the target xml state
+ 
+@@ -1720,7 +1760,9 @@ def copy_oemconfig_section(self, target_state):
+                 [oemconfig_section]
+             )
+ 
+-    def copy_repository_sections(self, target_state, wipe=False):
++    def copy_repository_sections(
++        self, target_state: Any, wipe: bool = False
++    ) -> None:
+         """
+         Copy repository sections from this xml state to the target xml state
+ 
+@@ -1740,7 +1782,9 @@ def copy_repository_sections(self, target_state, wipe=False):
+                 repository_copy.set_profiles(None)
+                 target_state.xml_data.add_repository(repository_copy)
+ 
+-    def copy_preferences_subsections(self, section_names, target_state):
++    def copy_preferences_subsections(
++        self, section_names: List, target_state: Any
++    ) -> None:
+         """
+         Copy subsections of the preferences sections, matching given
+         section names, from this xml state to the target xml state
+@@ -1763,7 +1807,9 @@ def copy_preferences_subsections(self, section_names, target_state):
+                         )
+                         set_section_method(section)
+ 
+-    def copy_build_type_attributes(self, attribute_names, target_state):
++    def copy_build_type_attributes(
++        self, attribute_names: List, target_state: Any
++    ) -> None:
+         """
+         Copy specified attributes from this build type section to the
+         target xml state build type section
+@@ -1782,7 +1828,7 @@ def copy_build_type_attributes(self, attribute_names, target_state):
+                 )
+                 set_type_method(attribute_value)
+ 
+-    def copy_bootincluded_packages(self, target_state):
++    def copy_bootincluded_packages(self, target_state: Any) -> None:
+         """
+         Copy packages marked as bootinclude to the packages type=image
+         (or type=bootstrap if no type=image was found) section in the
+@@ -1833,7 +1879,7 @@ def copy_bootincluded_packages(self, target_state):
+                             package.package_section
+                         )
+ 
+-    def copy_bootincluded_archives(self, target_state):
++    def copy_bootincluded_archives(self, target_state: Any) -> None:
+         """
+         Copy archives marked as bootinclude to the packages type=bootstrap
+         section in the target xml state
+@@ -1859,7 +1905,7 @@ def copy_bootincluded_archives(self, target_state):
+                                 )
+                             )
+ 
+-    def copy_bootdelete_packages(self, target_state):
++    def copy_bootdelete_packages(self, target_state: Any) -> None:
+         """
+         Copy packages marked as bootdelete to the packages type=delete
+         section in the target xml state
+@@ -1894,7 +1940,7 @@ def copy_bootdelete_packages(self, target_state):
+                         )
+                     )
+ 
+-    def get_distribution_name_from_boot_attribute(self):
++    def get_distribution_name_from_boot_attribute(self) -> str:
+         """
+         Extract the distribution name from the boot attribute of the
+         build type section.
+@@ -1923,7 +1969,7 @@ def get_distribution_name_from_boot_attribute(self):
+             )
+         return boot_attribute_expression.group(1).lower()
+ 
+-    def get_fs_mount_option_list(self):
++    def get_fs_mount_option_list(self) -> List:
+         """
+         List of root filesystem mount options
+ 
+@@ -1942,7 +1988,7 @@ def get_fs_mount_option_list(self):
+ 
+         return option_list
+ 
+-    def get_fs_create_option_list(self):
++    def get_fs_create_option_list(self) -> List:
+         """
+         List of root filesystem creation options
+ 
+@@ -1961,7 +2007,7 @@ def get_fs_create_option_list(self):
+ 
+         return option_list
+ 
+-    def get_derived_from_image_uri(self):
++    def get_derived_from_image_uri(self) -> Optional[Uri]:
+         """
+         Uri object of derived image if configured
+ 
+@@ -1976,15 +2022,16 @@ def get_derived_from_image_uri(self):
+         derived_image = self.build_type.get_derived_from()
+         if derived_image:
+             return Uri(derived_image, repo_type='container')
++        return None
+ 
+-    def set_derived_from_image_uri(self, uri):
++    def set_derived_from_image_uri(self, uri: str) -> None:
+         """
+         Set derived_from attribute to a new value
+ 
+         In order to set a new value the derived_from attribute
+         must be already present in the image configuration
+ 
+-        :param string uri: URI
++        :param str uri: URI
+         """
+         if self.build_type.get_derived_from():
+             self.build_type.set_derived_from(uri)
+@@ -1998,29 +2045,29 @@ def set_derived_from_image_uri(self, uri):
+             ''')
+             log.warning(message.format(uri))
+ 
+-    def set_root_partition_uuid(self, uuid):
++    def set_root_partition_uuid(self, uuid: str) -> None:
+         """
+         Store PARTUUID provided in uuid as state information
+ 
+-        :param string uuid: PARTUUID
++        :param str uuid: PARTUUID
+         """
+         self.root_partition_uuid = uuid
+ 
+-    def get_root_partition_uuid(self):
++    def get_root_partition_uuid(self) -> Optional[str]:
+         """
+         Return preserved PARTUUID
+         """
+         return self.root_partition_uuid
+ 
+-    def set_root_filesystem_uuid(self, uuid):
++    def set_root_filesystem_uuid(self, uuid: str) -> None:
+         """
+         Store UUID provided in uuid as state information
+ 
+-        :param string uuid: UUID
++        :param str uuid: UUID
+         """
+         self.root_filesystem_uuid = uuid
+ 
+-    def get_root_filesystem_uuid(self):
++    def get_root_filesystem_uuid(self) -> Optional[str]:
+         """
+         Return preserved UUID
+         """
+diff --git a/setup.cfg b/setup.cfg
+index 88f68277e6..b093aa837a 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -22,3 +22,10 @@ max-complexity = 18
+ [doc8]
+ max-line-length = 90
+ verbose = 1
++
++[mypy]
++ignore_missing_imports = True
++
++[mypy-kiwi.xml_parse.*]
++# skip auto generated code
++ignore_errors = True
+diff --git a/test/unit/markup/base_test.py b/test/unit/markup/base_test.py
+index bc1c6fd1e9..876c9fda5c 100644
+--- a/test/unit/markup/base_test.py
++++ b/test/unit/markup/base_test.py
+@@ -2,17 +2,11 @@
+ 
+ from kiwi.markup.base import MarkupBase
+ 
+-from kiwi.exceptions import KiwiDescriptionInvalid
+-
+ 
+ class TestMarkupBase:
+     def setup(self):
+         self.markup = MarkupBase('../data/example_config.xml')
+ 
+-    def test_raises_invalid_description_content(self):
+-        with raises(KiwiDescriptionInvalid):
+-            MarkupBase('no-bytes-data')
+-
+     def test_get_xml_description(self):
+         with raises(NotImplementedError):
+             self.markup.get_xml_description()
+diff --git a/test/unit/xml_description_test.py b/test/unit/xml_description_test.py
+index 672a19f2aa..f3650f673c 100644
+--- a/test/unit/xml_description_test.py
++++ b/test/unit/xml_description_test.py
+@@ -4,6 +4,7 @@
+ from lxml import etree
+ from pytest import raises
+ from collections import namedtuple
++from tempfile import NamedTemporaryFile
+ 
+ from kiwi.xml_description import XMLDescription
+ 
+@@ -13,7 +14,6 @@
+     KiwiValidationError,
+     KiwiDescriptionInvalid,
+     KiwiDataStructureError,
+-    KiwiDescriptionConflict,
+     KiwiCommandNotFound,
+     KiwiExtensionError
+ )
+@@ -118,21 +118,32 @@ def setup(self):
+         self.description_from_file = XMLDescription(
+             description='../data/example_config.xml'
+         )
+-        self.description_from_data = XMLDescription(xml_content=test_xml)
++        test_xml_file = NamedTemporaryFile()
++        with open(test_xml_file.name, 'wb') as description:
++            description.write(test_xml)
++        self.description_from_data = XMLDescription(test_xml_file.name)
++
++        test_xml_extension_file = NamedTemporaryFile()
++        with open(test_xml_extension_file.name, 'wb') as description:
++            description.write(test_xml_extension)
+         self.extension_description_from_data = XMLDescription(
+-            xml_content=test_xml_extension
++            test_xml_extension_file.name
+         )
++
++        test_xml_extension_not_unique_file = NamedTemporaryFile()
++        with open(test_xml_extension_not_unique_file.name, 'wb') as description:
++            description.write(test_xml_extension_not_unique)
+         self.extension_multiple_toplevel_description_from_data = XMLDescription(
+-            xml_content=test_xml_extension_not_unique
++            test_xml_extension_not_unique_file.name
+         )
++
++        test_xml_extension_invalid_file = NamedTemporaryFile()
++        with open(test_xml_extension_invalid_file.name, 'wb') as description:
++            description.write(test_xml_extension_invalid)
+         self.extension_invalid_description_from_data = XMLDescription(
+-            xml_content=test_xml_extension_invalid
++            test_xml_extension_invalid_file.name
+         )
+ 
+-    def test_constructor_conflict(self):
+-        with raises(KiwiDescriptionConflict):
+-            XMLDescription(description='description', xml_content='content')
+-
+     def test_load_schema_from_xml_content(self):
+         schema = etree.parse('../../kiwi/schema/kiwi.rng')
+         lookup = '{http://relaxng.org/ns/structure/1.0}attribute'
+diff --git a/test/unit/xml_state_test.py b/test/unit/xml_state_test.py
+index a8e4850706..03abce022a 100644
+--- a/test/unit/xml_state_test.py
++++ b/test/unit/xml_state_test.py
+@@ -226,6 +226,7 @@ def test_get_to_become_deleted_packages(self):
+     def test_get_build_type_vagrant_config_section(self):
+         vagrant_config = self.state.get_build_type_vagrant_config_section()
+         assert vagrant_config.get_provider() == 'libvirt'
++        assert self.boot_state.get_build_type_vagrant_config_section() is None
+ 
+     def test_virtualbox_guest_additions_vagrant_config_section(self):
+         assert not self.state.get_vagrant_config_virtualbox_guest_additions()
+@@ -242,6 +243,7 @@ def test_get_build_type_system_disk_section(self):
+ 
+     def test_get_build_type_vmdisk_section(self):
+         assert self.state.get_build_type_vmdisk_section().get_id() == 0
++        assert self.boot_state.get_build_type_vmdisk_section() is None
+ 
+     def test_get_build_type_vmnic_entries(self):
+         assert self.state.get_build_type_vmnic_entries()[0].get_interface() \
+@@ -250,6 +252,7 @@ def test_get_build_type_vmnic_entries(self):
+ 
+     def test_get_build_type_vmdvd_section(self):
+         assert self.state.get_build_type_vmdvd_section().get_id() == 0
++        assert self.boot_state.get_build_type_vmdvd_section() is None
+ 
+     def test_get_volume_management(self):
+         assert self.state.get_volume_management() == 'lvm'
+@@ -915,11 +918,13 @@ def test_get_rpm_locale_filtering(self):
+ 
+     def test_get_locale(self):
+         assert self.state.get_locale() == ['en_US', 'de_DE']
++        assert self.boot_state.get_locale() is None
+ 
+     def test_get_rpm_locale(self):
+         assert self.state.get_rpm_locale() == [
+             'POSIX', 'C', 'C.UTF-8', 'en_US', 'de_DE'
+         ]
++        assert self.boot_state.get_rpm_locale() is None
+ 
+     def test_set_root_partition_uuid(self):
+         assert self.state.get_root_partition_uuid() is None
+@@ -949,6 +954,9 @@ def test_get_build_type_bootloader_serial_line_setup(self, mock_bootloader):
+         mock_bootloader.return_value = [self.bootloader]
+         assert self.state.get_build_type_bootloader_serial_line_setup() == \
+             'some-serial'
++        mock_bootloader.return_value = [None]
++        assert self.state.get_build_type_bootloader_serial_line_setup() \
++            is None
+ 
+     @patch('kiwi.xml_parse.type_.get_bootloader')
+     def test_get_build_type_bootloader_timeout(self, mock_bootloader):
+@@ -961,6 +969,9 @@ def test_get_build_type_bootloader_timeout_style(self, mock_bootloader):
+         mock_bootloader.return_value = [self.bootloader]
+         assert self.state.get_build_type_bootloader_timeout_style() == \
+             'some-style'
++        mock_bootloader.return_value = [None]
++        assert self.state.get_build_type_bootloader_timeout_style() \
++            is None
+ 
+     @patch('kiwi.xml_parse.type_.get_bootloader')
+     def test_get_build_type_bootloader_targettype(self, mock_bootloader):
