@@ -1,0 +1,35 @@
+diff --git a/.bumpversion.cfg b/.bumpversion.cfg
+index b8ad1e84fa..89f6cc15d0 100644
+--- a/.bumpversion.cfg
++++ b/.bumpversion.cfg
+@@ -1,5 +1,5 @@
+ [bumpversion]
+-current_version = 9.22.3
++current_version = 9.22.4
+ commit = True
+ tag = True
+ 
+diff --git a/doc/source/conf.py b/doc/source/conf.py
+index 65abf426f6..f702c9610f 100644
+--- a/doc/source/conf.py
++++ b/doc/source/conf.py
+@@ -128,7 +128,7 @@ def setup(app):
+ # built documents.
+ #
+ # The short X.Y version.
+-version = '9.22.3'
++version = '9.22.4'
+ # The full version, including alpha/beta/rc tags.
+ release = version
+ 
+diff --git a/kiwi/version.py b/kiwi/version.py
+index 5a0babe018..15bd73ce13 100644
+--- a/kiwi/version.py
++++ b/kiwi/version.py
+@@ -18,5 +18,5 @@
+ """
+ Global version information used in kiwi and the package
+ """
+-__version__ = '9.22.3'
++__version__ = '9.22.4'
+ __githash__ = '$Format:%H$'
