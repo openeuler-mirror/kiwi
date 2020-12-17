@@ -1,0 +1,192 @@
+diff --git a/kiwi/schema/kiwi.rnc b/kiwi/schema/kiwi.rnc
+index eabc94ad16..c3a773f0d9 100644
+--- a/kiwi/schema/kiwi.rnc
++++ b/kiwi/schema/kiwi.rnc
+@@ -2811,8 +2811,10 @@ div {
+ #
+ div {
+     k.preferences.profiles.attribute = k.profiles.attribute
++    k.preferences.arch.attribute = k.arch.attribute
+     k.preferences.attlist =
+-        k.preferences.profiles.attribute?
++        k.preferences.profiles.attribute? &
++        k.preferences.arch.attribute?
+     k.preferences =  
+         ## Configuration Information Needed for Logical Extend
+         ## All elements are optional since the combination of appropriate
+diff --git a/kiwi/schema/kiwi.rng b/kiwi/schema/kiwi.rng
+index 1c8a299570..207e895d12 100644
+--- a/kiwi/schema/kiwi.rng
++++ b/kiwi/schema/kiwi.rng
+@@ -4333,10 +4333,18 @@ or plusRecommended</a:documentation>
+     <define name="k.preferences.profiles.attribute">
+       <ref name="k.profiles.attribute"/>
+     </define>
++    <define name="k.preferences.arch.attribute">
++      <ref name="k.arch.attribute"/>
++    </define>
+     <define name="k.preferences.attlist">
+-      <optional>
+-        <ref name="k.preferences.profiles.attribute"/>
+-      </optional>
++      <interleave>
++        <optional>
++          <ref name="k.preferences.profiles.attribute"/>
++        </optional>
++        <optional>
++          <ref name="k.preferences.arch.attribute"/>
++        </optional>
++      </interleave>
+     </define>
+     <define name="k.preferences">
+       <element name="preferences">
+diff --git a/kiwi/xml_parse.py b/kiwi/xml_parse.py
+index 60463df922..04cb233dfa 100644
+--- a/kiwi/xml_parse.py
++++ b/kiwi/xml_parse.py
+@@ -7110,9 +7110,10 @@ class preferences(GeneratedsSuper):
+     sections based on profiles combine to create on vaild definition"""
+     subclass = None
+     superclass = None
+-    def __init__(self, profiles=None, bootsplash_theme=None, bootloader_theme=None, keytable=None, locale=None, packagemanager=None, rpm_locale_filtering=None, rpm_check_signatures=None, rpm_excludedocs=None, showlicense=None, timezone=None, type_=None, version=None):
++    def __init__(self, profiles=None, arch=None, bootsplash_theme=None, bootloader_theme=None, keytable=None, locale=None, packagemanager=None, rpm_locale_filtering=None, rpm_check_signatures=None, rpm_excludedocs=None, showlicense=None, timezone=None, type_=None, version=None):
+         self.original_tagname_ = None
+         self.profiles = _cast(None, profiles)
++        self.arch = _cast(None, arch)
+         if bootsplash_theme is None:
+             self.bootsplash_theme = []
+         else:
+@@ -7234,6 +7235,15 @@ def insert_version_at(self, index, value): self.version.insert(index, value)
+     def replace_version_at(self, index, value): self.version[index] = value
+     def get_profiles(self): return self.profiles
+     def set_profiles(self, profiles): self.profiles = profiles
++    def get_arch(self): return self.arch
++    def set_arch(self, arch): self.arch = arch
++    def validate_arch_name(self, value):
++        # Validate type arch-name, a restriction on xs:token.
++        if value is not None and Validate_simpletypes_:
++            if not self.gds_validate_simple_patterns(
++                    self.validate_arch_name_patterns_, value):
++                warnings_.warn('Value "%s" does not match xsd pattern restrictions: %s' % (value.encode('utf-8'), self.validate_arch_name_patterns_, ))
++    validate_arch_name_patterns_ = [['^.*$']]
+     def hasContent_(self):
+         if (
+             self.bootsplash_theme or
+@@ -7277,6 +7287,9 @@ def exportAttributes(self, outfile, level, already_processed, namespaceprefix_='
+         if self.profiles is not None and 'profiles' not in already_processed:
+             already_processed.add('profiles')
+             outfile.write(' profiles=%s' % (self.gds_encode(self.gds_format_string(quote_attrib(self.profiles), input_name='profiles')), ))
++        if self.arch is not None and 'arch' not in already_processed:
++            already_processed.add('arch')
++            outfile.write(' arch=%s' % (quote_attrib(self.arch), ))
+     def exportChildren(self, outfile, level, namespaceprefix_='', name_='preferences', fromsubclass_=False, pretty_print=True):
+         if pretty_print:
+             eol_ = '\n'
+@@ -7329,6 +7342,12 @@ def buildAttributes(self, node, attrs, already_processed):
+         if value is not None and 'profiles' not in already_processed:
+             already_processed.add('profiles')
+             self.profiles = value
++        value = find_attr_value_('arch', node)
++        if value is not None and 'arch' not in already_processed:
++            already_processed.add('arch')
++            self.arch = value
++            self.arch = ' '.join(self.arch.split())
++            self.validate_arch_name(self.arch)    # validate type arch-name
+     def buildChildren(self, child_, node, nodeName_, fromsubclass_=False):
+         if nodeName_ == 'bootsplash-theme':
+             bootsplash_theme_ = child_.text
+diff --git a/kiwi/xml_state.py b/kiwi/xml_state.py
+index 2395bc1b5f..91283a6716 100644
+--- a/kiwi/xml_state.py
++++ b/kiwi/xml_state.py
+@@ -59,15 +59,18 @@ def __init__(self, xml_data, profiles=None, build_type=None):
+ 
+     def get_preferences_sections(self):
+         """
+-        All preferences sections for the selected profiles
++        All preferences sections for the selected profiles that match the
++        host architecture
+ 
+         :return: list of <preferences> section reference(s)
+ 
+         :rtype: list
+         """
+-        return self._profiled(
+-            self.xml_data.get_preferences()
+-        )
++        preferences_list = []
++        for preferences in self._profiled(self.xml_data.get_preferences()):
++            if self.preferences_matches_host_architecture(preferences):
++                preferences_list.append(preferences)
++        return preferences_list
+ 
+     def get_description_section(self):
+         """
+@@ -297,6 +300,22 @@ def profile_matches_host_architecture(self, profile):
+         """
+         return self._section_matches_host_architecture(profile)
+ 
++    def preferences_matches_host_architecture(self, preferences):
++        """
++        Tests if the given preferences section is applicable for the current host
++        architecture. If no architecture is specified within the section
++        it is considered as a match returning True.
++
++        Note: The XML section pointer must provide an arch attribute
++
++        :param section: XML section object
++
++        :return: True or False
++
++        :rtype: bool
++        """
++        return self._section_matches_host_architecture(preferences)
++
+     def get_package_sections(self, packages_sections):
+         """
+         List of package sections from the given packages sections.
+diff --git a/test/data/example_config.xml b/test/data/example_config.xml
+index 66c24886d0..8796bd1a8a 100644
+--- a/test/data/example_config.xml
++++ b/test/data/example_config.xml
+@@ -29,7 +29,7 @@
+         <profile name="xenDom0Flavour" description="Disk Dom0"/>
+         <profile name="xenDomUFlavour" description="Disk DomU"/>
+         <profile name="ec2Flavour" description="Disk EC2"/>
+-        <profile name="vmxFlavour" description="Disk" import="true"/>
++        <profile name="vmxFlavour" description="Disk" import="true" arch="x86_64,s390"/>
+         <profile name="vmxSimpleFlavour" description="Disk no resize"/>
+         <profile name="containerFlavour" description="Container image"/>
+         <profile name="derivedContainer" description="Container from a base"/>
+@@ -53,6 +53,9 @@
+         <bootsplash-theme>openSUSE</bootsplash-theme>
+         <bootloader-theme>openSUSE</bootloader-theme>
+     </preferences>
++    <preferences arch="aarch64">
++        <type image="iso" firmware="efi"/>
++    </preferences>
+     <preferences profiles="vmxFlavour">
+         <type image="oem" primary="true" boot="oemboot/example-distribution" firmware="efi" kernelcmdline="splash" vga="0x303" editbootconfig="my_edit_boot_script" editbootinstall="/absolute/path/to/my_edit_boot_install" fsmountoptions="async" fscreateoptions="-O ^has_journal" btrfs_root_is_snapshot="true" spare_part="200M" spare_part_fs_attributes="no-copy-on-write" xen_server="true" formatoptions="force_size,super=man" filesystem="ext4">
+             <size unit="G" additive="true">1</size>
+diff --git a/test/unit/xml_state_test.py b/test/unit/xml_state_test.py
+index a5e87b24cd..a8e4850706 100644
+--- a/test/unit/xml_state_test.py
++++ b/test/unit/xml_state_test.py
+@@ -58,6 +58,17 @@ def test_get_description_section(self):
+         assert description.specification == \
+             'Testing various configuration states'
+ 
++    @patch('platform.machine')
++    def test_get_preferences_by_architecture(self, mock_machine):
++        mock_machine.return_value = 'aarch64'
++        state = XMLState(
++            self.description.load()
++        )
++        preferences = state.get_preferences_sections()
++        assert len(preferences) == 3
++        assert preferences[2].get_arch() == 'aarch64'
++        assert state.get_build_type_name() == 'iso'
++
+     def test_build_type_primary_selected(self):
+         assert self.state.get_build_type_name() == 'oem'
+ 
