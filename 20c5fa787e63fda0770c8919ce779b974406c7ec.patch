@@ -1,0 +1,41 @@
+diff --git a/package/python-kiwi-spec-template b/package/python-kiwi-spec-template
+index f8548bd348..ab81575666 100644
+--- a/package/python-kiwi-spec-template
++++ b/package/python-kiwi-spec-template
+@@ -58,7 +58,7 @@ Source:         %{name}.tar.gz
+ Source1:        %{name}-rpmlintrc
+ BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+ BuildRequires:  gcc
+-BuildRequires:  python%{python3_pkgversion}-%{develsuffix}
++BuildRequires:  python%{python3_pkgversion}-%{develsuffix} >= 3.6
+ BuildRequires:  python%{python3_pkgversion}-setuptools
+ %if 0%{?fedora} || 0%{?suse_version}
+ BuildRequires:  fdupes
+@@ -159,7 +159,6 @@ Requires:       kiwi-systemdeps-bootloaders = %{version}-%{release}
+ Host setup helper to pull in all packages required/useful on
+ the build host to build live and install iso images.
+ 
+-
+ %package -n kiwi-systemdeps-bootloaders
+ Summary:        KIWI - host requirements for configuring bootloaders
+ %if 0%{?suse_version}
+@@ -303,6 +302,7 @@ Group:          %{pygroup}
+ Obsoletes:      python2-kiwi
+ Conflicts:      python2-kiwi
+ Conflicts:      kiwi-man-pages < %{version}
++Requires:       python%{python3_pkgversion} >= 3.6
+ %if 0%{?ubuntu} || 0%{?debian}
+ Requires:       python%{python3_pkgversion}-yaml
+ %else
+diff --git a/setup.py b/setup.py
+index 64a90c14e2..12e925d053 100755
+--- a/setup.py
++++ b/setup.py
+@@ -44,6 +44,7 @@ def run(self):
+ 
+ config = {
+     'name': 'kiwi',
++    'python_requires': '>=3.6',
+     'description': 'KIWI - Appliance Builder (next generation)',
+     'author': 'Marcus Schaefer',
+     'url': 'https://osinside.github.io/kiwi',
