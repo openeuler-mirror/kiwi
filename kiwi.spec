@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.21.5
-Release:        2
+Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -15,6 +15,7 @@ Patch2:	Include-box-plugin-images-to-build_status.patch
 Patch3:	Added-s390-SLE15-integration-tests.patch
 Patch4:	Cosmetic-update-for-build-status-helper.patch
 Patch5:	Added-universal-box-to-build-status-helper.patch
+Patch6000: 86f06b92e6d227844965d9f18e84c7da53a42b30.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -196,6 +197,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* 20201218195849780565 patch-tracking 9.21.5-3
+- append patch file of upstream repository from <86f06b92e6d227844965d9f18e84c7da53a42b30> to <86f06b92e6d227844965d9f18e84c7da53a42b30>
+
 * Thu Nov 26 2020 wuchaochao <wuchaochao4@huawei.com> - 9.21.5-2
 - Type:bugfix
 - ID:NA
