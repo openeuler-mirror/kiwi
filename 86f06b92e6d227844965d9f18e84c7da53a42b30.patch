@@ -1,0 +1,14 @@
+diff --git a/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi b/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
+index 23eff6a5b9..426f15dce3 100644
+--- a/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
++++ b/build-tests/x86/suse/test-image-docker-derived/appliance.kiwi
+@@ -19,9 +19,5 @@
+     </repository>
+     <packages type="image">
+         <package name="python3-kiwi"/>
+-        <package name="kiwi-image-docker-requires"/>
+-        <package name="kiwi-image-iso-requires"/>
+-        <package name="kiwi-image-oem-requires"/>
+-        <package name="kiwi-image-pxe-requires"/>
+     </packages>
+ </image>
