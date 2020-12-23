@@ -1,0 +1,104 @@
+diff --git a/kiwi/repository/dnf.py b/kiwi/repository/dnf.py
+index 2a44467e32..73de14befe 100644
+--- a/kiwi/repository/dnf.py
++++ b/kiwi/repository/dnf.py
+@@ -22,6 +22,7 @@
+ 
+ # project
+ from kiwi.defaults import Defaults
++from kiwi.command import Command
+ from kiwi.repository.base import RepositoryBase
+ from kiwi.path import Path
+ from kiwi.utils.rpm_database import RpmDataBase
+@@ -121,6 +122,32 @@ def setup_package_database_configuration(self):
+             rpmdb.link_database_to_host_path()
+         else:
+             rpmdb.set_database_to_host_path()
++        # SUSE compat code:
++        #
++        # Manually adding the compat link /var/lib/rpm that points to the
++        # rpmdb location as it is configured in the host rpm setup. DNF makes
++        # use of the host setup to bootstrap or to read the signing keys
++        # from the rpm database setup provisioned by rpm itself (macro level).
++        # It assumes the host setup is the default for the system being built.
++        #
++        # For SUSE this is causing a mismatch as the host setup is not the RPM
++        # default (/var/lib/rpm) and SUSE distros proactively relocate the rpm
++        # database from the default location to a custom one when the
++        # rpm package and related macros are installed for the first time.
++        rpmdb.init_database()
++        image_rpm_compat_link = '/var/lib/rpm'
++        host_rpm_dbpath = rpmdb.rpmdb_host.expand_query('%_dbpath')
++        if host_rpm_dbpath != image_rpm_compat_link:
++            Path.create(
++                self.root_dir + os.path.dirname(image_rpm_compat_link)
++            )
++            Command.run(
++                [
++                    'ln', '-s', '--no-target-directory',
++                    ''.join(['../..', host_rpm_dbpath]),
++                    self.root_dir + image_rpm_compat_link
++                ], raise_on_error=False
++            )
+ 
+     def use_default_location(self):
+         """
+diff --git a/test/unit/repository/dnf_test.py b/test/unit/repository/dnf_test.py
+index a564a57881..c8009b03dc 100644
+--- a/test/unit/repository/dnf_test.py
++++ b/test/unit/repository/dnf_test.py
+@@ -163,9 +163,14 @@ def test_add_repo_inside_buildservice(
+             )
+ 
+     @patch('kiwi.repository.dnf.RpmDataBase')
+-    def test_setup_package_database_configuration(self, mock_RpmDataBase):
++    @patch('kiwi.command.Command.run')
++    @patch('kiwi.repository.dnf.Path.create')
++    def test_setup_package_database_configuration(
++        self, mock_Path_create, mock_Command_run, mock_RpmDataBase
++    ):
+         rpmdb = mock.Mock()
+         rpmdb.has_rpm.return_value = False
++        rpmdb.rpmdb_host.expand_query.return_value = '/usr/lib/sysimage/rpm'
+         mock_RpmDataBase.return_value = rpmdb
+         self.repo.setup_package_database_configuration()
+         assert mock_RpmDataBase.call_args_list == [
+@@ -177,13 +182,23 @@ def test_setup_package_database_configuration(self, mock_RpmDataBase):
+         )
+         rpmdb.write_config.assert_called_once_with()
+         rpmdb.set_database_to_host_path.assert_called_once_with()
++        mock_Path_create.assert_called_once_with('../data/var/lib')
++        mock_Command_run.assert_called_once_with(
++            [
++                'ln', '-s', '--no-target-directory',
++                '../../usr/lib/sysimage/rpm', '../data/var/lib/rpm'
++            ], raise_on_error=False
++        )
+ 
+     @patch('kiwi.repository.dnf.RpmDataBase')
++    @patch('kiwi.command.Command.run')
++    @patch('kiwi.repository.dnf.Path.create')
+     def test_setup_package_database_configuration_bootstrapped_system(
+-        self, mock_RpmDataBase
++        self, mock_Path_create, mock_Command_run, mock_RpmDataBase
+     ):
+         rpmdb = mock.Mock()
+         rpmdb.has_rpm.return_value = True
++        rpmdb.rpmdb_host.expand_query.return_value = '/usr/lib/sysimage/rpm'
+         mock_RpmDataBase.return_value = rpmdb
+         self.repo.setup_package_database_configuration()
+         assert mock_RpmDataBase.call_args_list == [
+@@ -195,6 +210,13 @@ def test_setup_package_database_configuration_bootstrapped_system(
+         )
+         rpmdb.write_config.assert_called_once_with()
+         rpmdb.link_database_to_host_path.assert_called_once_with()
++        mock_Path_create.assert_called_once_with('../data/var/lib')
++        mock_Command_run.assert_called_once_with(
++            [
++                'ln', '-s', '--no-target-directory',
++                '../../usr/lib/sysimage/rpm', '../data/var/lib/rpm'
++            ], raise_on_error=False
++        )
+ 
+     @patch('kiwi.repository.dnf.ConfigParser')
+     @patch('kiwi.repository.dnf.Defaults.is_buildservice_worker')
