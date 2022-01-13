@@ -2,12 +2,14 @@
 
 Name:           kiwi
 Version:        9.21.7
-Release:        1
+Release:        2
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
 URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
+
+Patch0:         backport-Fixed-cleanup-of-temporary-directory.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -189,6 +191,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Wed Aug 2021 liudabo<liudabo1@huawei.com> - 9.21.7-2
+- Fixed cleanup of temporary directory 
+
 * Wed Aug 19 2020 dingyue <dingyue5@huawei.com> - 9.21.7-1
 - Bump version to 9.21.7
 
