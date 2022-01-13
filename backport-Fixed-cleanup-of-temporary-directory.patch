@@ -1,0 +1,70 @@
+From 8794d4a7cbf7bb43382e283c9c6f6c77c712d0b8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20Sch=C3=A4fer?= <ms@suse.de>
+Date: Thu, 10 Jun 2021 11:10:56 +0200
+Subject: [PATCH] Fixed cleanup of temporary directory
+
+In the custom kiwi initrd build process a temporary directory
+holding a copy of the initrd root tree is created. That data
+got never cleaned up. This commit uses a TemporaryDirectory
+object from the tempfile module to make sure it gets deleted
+once the execution scope is done. This Fixes #1837
+---
+ kiwi/boot/image/builtin_kiwi.py           | 7 +++----
+ test/unit/boot/image/builtin_kiwi_test.py | 7 ++++++-
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/kiwi/boot/image/builtin_kiwi.py b/kiwi/boot/image/builtin_kiwi.py
+index 08c5644..5b1c297 100644
+--- a/kiwi/boot/image/builtin_kiwi.py
++++ b/kiwi/boot/image/builtin_kiwi.py
+@@ -17,6 +17,7 @@
+ #
+ import os
+ import logging
++from tempfile import TemporaryDirectory
+ from tempfile import mkdtemp
+ 
+ # project
+@@ -129,13 +130,11 @@ class BootImageKiwi(BootImageBase):
+                 kiwi_initrd_basename = basename
+             else:
+                 kiwi_initrd_basename = self.initrd_base_name
+-            temp_boot_root_directory = mkdtemp(
++            temp_boot_root = TemporaryDirectory(
+                 prefix='kiwi_boot_root_copy.'
+             )
++            temp_boot_root_directory = temp_boot_root.name
+             os.chmod(temp_boot_root_directory, 0o755)
+-            self.temp_directories.append(
+-                temp_boot_root_directory
+-            )
+             data = DataSync(
+                 self.boot_root_directory + '/',
+                 temp_boot_root_directory
+diff --git a/test/unit/boot/image/builtin_kiwi_test.py b/test/unit/boot/image/builtin_kiwi_test.py
+index 7a0ff1d..ed72843 100644
+--- a/test/unit/boot/image/builtin_kiwi_test.py
++++ b/test/unit/boot/image/builtin_kiwi_test.py
+@@ -101,13 +101,18 @@ class TestBootImageKiwi:
+     @patch('kiwi.boot.image.base.BootImageBase.is_prepared')
+     @patch('kiwi.boot.image.builtin_kiwi.mkdtemp')
+     @patch('kiwi.boot.image.builtin_kiwi.os.chmod')
++    @patch('kiwi.boot.image.builtin_kiwi.TemporaryDirectory')
+     def test_create_initrd(
+-        self, mock_os_chmod, mock_mkdtemp, mock_prepared, mock_sync,
++        self, mock_TemporaryDirectory, mock_os_chmod,
++        mock_mkdtemp, mock_prepared, mock_sync,
+         mock_wipe, mock_create, mock_compress, mock_cpio
+     ):
+         data = mock.Mock()
+         mock_sync.return_value = data
+         mock_mkdtemp.return_value = 'temp-boot-directory'
++        temporary_directory = Mock()
++        temporary_directory.name = 'temp-boot-directory'
++        mock_TemporaryDirectory.return_value = temporary_directory
+         mock_prepared.return_value = True
+         self.boot_image.boot_root_directory = 'boot-root-directory'
+         mbrid = mock.Mock()
+-- 
+2.27.0
+
