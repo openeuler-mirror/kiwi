@@ -1,0 +1,898 @@
+diff --git a/kiwi/archive/cpio.py b/kiwi/archive/cpio.py
+index 27d596c..f147aa1 100644
+--- a/kiwi/archive/cpio.py
++++ b/kiwi/archive/cpio.py
+@@ -16,8 +16,13 @@
+ # along with kiwi.  If not, see <http://www.gnu.org/licenses/>
+ #
+ # project
++from kiwi.runtime_config import RuntimeConfig
+ from kiwi.command import Command
++import os
+ 
++import logging
++
++log = logging.getLogger('kiwi')
+ 
+ class ArchiveCpio:
+     """
+@@ -27,6 +32,7 @@ class ArchiveCpio:
+     """
+     def __init__(self, filename):
+         self.filename = filename
++        self.runtime_config = RuntimeConfig()
+ 
+     def create(self, source_dir, exclude=None):
+         """
+@@ -35,6 +41,62 @@ class ArchiveCpio:
+         :param string source_dir: data source directory
+         :param list exclude: list of excluded items
+         """
++        if self.runtime_config.get_custom_hw_systemflag():
++            delete_list = ['vmlinuz*', 'initrd*', 'initramfs*', 'grub']
++            for delete_file in delete_list:
++                rm_boot_cmd = 'rm -rf '+ source_dir + '/boot/' + delete_file
++                os.system(rm_boot_cmd)
++            sec_flag = "false"
++            pwd = os.getcwd()
++            secDir = pwd + '/kiwi/eulerlinuxiso/'
++            secfile = secDir + 'security_s.conf'
++            if os.path.isfile(secfile):
++                sec_flag = "true"
++                log.info('Starting to do security hardening...')
++                sec_com = pwd + '/security-tool/sysenhance.sh -s -c ' + pwd + '/security-tool/security.conf -u ' + secfile + ' -d ' + source_dir
++                sec_com = 'sh '+ sec_com + ' -l /tmp/sysenhance.log > /tmp/sysenhancelog 2>&1'
++                os.system(sec_com)
++                Command.run(
++                    ['rm', '-f', secfile]
++                )
++                log.info("Security hardening log file at /tmp/sysenhance.log")
++            else:
++                log.info("Skip security hardening...")
++
++            if self.runtime_config.get_custom_hw_release_type() == 'TAR':
++                resolve_file = secDir + 'resolve.sh'
++                change_uid_files = source_dir + '/usr/openEuler/conf/change_uid_files'
++                change_gid_files = source_dir + '/usr/openEuler/conf/change_gid_files'
++                if os.path.isfile(resolve_file):
++                    log.info('Starting to resolve none-owner problem...')
++                    Command.run(
++                        ['cp', resolve_file, source_dir + '/tmp']
++                    )
++                    Command.run(
++                        ['chmod', 'u+x', source_dir + '/tmp/resolve.sh']
++                    )
++                    Command.run(
++                        ['chroot', source_dir, '/tmp/resolve.sh']
++                    )
++                    Command.run(
++                        ['rm', '-f', source_dir + '/tmp/resolve.sh']
++                    )
++                    if not os.path.isfile(change_uid_files) or not os.path.isfile(change_gid_files):
++                        log.info('Failed to Resolve the non-owner problem...')
++                else:
++                    log.info("Skip resolve none-owner...")
++
++        if self.runtime_config.get_custom_hw_systemflag():
++            find_command = ['cd', source_dir, '&&', 'find', '.']
++            cpio_command = [
++                'cpio', '-H', 'newc', '--create', '--quiet', '|', 'pigz', '-9', '>', self.filename
++            ] 
++            bash_command = find_command + ['|'] + cpio_command + ['&&'] + ['cd -']
++            Command.run(
++                ['bash', '-c', ' '.join(bash_command)]
++            )
++            return
++
+         find_excludes = []
+         find_command = ['cd', source_dir, '&&', 'find', '.']
+         cpio_command = [
+diff --git a/kiwi/boot/image/builtin_kiwi.py b/kiwi/boot/image/builtin_kiwi.py
+index 08c5644..1e8a3b4 100644
+--- a/kiwi/boot/image/builtin_kiwi.py
++++ b/kiwi/boot/image/builtin_kiwi.py
+@@ -29,6 +29,7 @@ from kiwi.archive.cpio import ArchiveCpio
+ from kiwi.utils.compress import Compress
+ from kiwi.path import Path
+ from kiwi.boot.image.base import BootImageBase
++from kiwi.runtime_config import RuntimeConfig
+ 
+ log = logging.getLogger('kiwi')
+ 
+@@ -79,6 +80,7 @@ class BootImageKiwi(BootImageBase):
+         system.install_system(
+             manager
+         )
++        self.runtime_config = RuntimeConfig()
+ 
+         profile = Profile(self.boot_xml_state)
+         profile.add('kiwi_initrdname', boot_image_name)
+@@ -96,16 +98,21 @@ class BootImageKiwi(BootImageBase):
+         self.setup.import_overlay_files(
+             follow_links=True
+         )
++        if self.runtime_config.get_custom_hw_systemflag():
++            self.setup.setup_groups()
++            self.setup.setup_users()
+         self.setup.call_config_script()
+ 
+-        system.pinch_system(
+-            manager=manager, force=True
+-        )
++        if not self.runtime_config.get_custom_hw_systemflag():
++            system.pinch_system(
++                manager=manager, force=True
++            )
+         # make sure system instance is cleaned up before setting up
+         del system
+ 
+         self.setup.call_image_script()
+-        self.setup.create_init_link_from_linuxrc()
++        if not self.runtime_config.get_custom_hw_systemflag():
++            self.setup.create_init_link_from_linuxrc()
+ 
+     def create_initrd(self, mbrid=None, basename=None, install_initrd=False):
+         """
+@@ -144,14 +151,15 @@ class BootImageKiwi(BootImageBase):
+                 options=['-a']
+             )
+             boot_directory = temp_boot_root_directory + '/boot'
+-            Path.wipe(boot_directory)
+-            if mbrid:
+-                log.info(
+-                    '--> Importing mbrid: %s', mbrid.get_id()
+-                )
+-                Path.create(boot_directory)
+-                image_identifier = boot_directory + '/mbrid'
+-                mbrid.write(image_identifier)
++            if not self.runtime_config.get_custom_hw_systemflag():
++                Path.wipe(boot_directory)
++                if mbrid:
++                    log.info(
++                        '--> Importing mbrid: %s', mbrid.get_id()
++                    )
++                    Path.create(boot_directory)
++                    image_identifier = boot_directory + '/mbrid'
++                    mbrid.write(image_identifier)
+ 
+             cpio = ArchiveCpio(
+                 os.sep.join([self.target_dir, kiwi_initrd_basename])
+@@ -159,19 +167,34 @@ class BootImageKiwi(BootImageBase):
+             # the following is a list of directories which were needed
+             # during the process of creating an image but not when the
+             # image is actually booting with this initrd
+-            exclude_from_archive = [
+-                '/' + Defaults.get_shared_cache_location(),
+-                '/image', '/usr/lib/grub*'
+-            ]
++            if self.runtime_config.get_custom_hw_systemflag():
++                exclude_from_archive = [
++                    '/' + Defaults.get_shared_cache_location(),
++                    '/image'
++                ]
++            else:
++                exclude_from_archive = [
++                    '/' + Defaults.get_shared_cache_location(),
++                    '/image', '/usr/lib/grub*'
++                ]
++
+             # the following is a list of directories to exclude which
+             # are not needed inside of the initrd
+-            exclude_from_archive += [
+-                '/usr/share/doc', '/usr/share/man', '/home', '/media', '/srv'
+-            ]
++            if self.runtime_config.get_custom_hw_systemflag():
++                exclude_from_archive += [
++                    '/media'
++                ]
++            else:
++                exclude_from_archive += [
++                    '/usr/share/doc', '/usr/share/man', '/home', '/media', '/srv' 
++                ]
+             cpio.create(
+                 source_dir=temp_boot_root_directory,
+                 exclude=exclude_from_archive
+             )
++            if self.runtime_config.get_custom_hw_systemflag():
++                self.initrd_filename = kiwi_initrd_basename
++                return
+             log.info(
+                 '--> xz compressing archive'
+             )
+diff --git a/kiwi/builder/kis.py b/kiwi/builder/kis.py
+index ea33c6a..542a345 100644
+--- a/kiwi/builder/kis.py
++++ b/kiwi/builder/kis.py
+@@ -132,25 +132,27 @@ class KisBuilder:
+         self.system_setup.export_modprobe_setup(
+             self.boot_image_task.boot_root_directory
+         )
+-
+-        # extract kernel from boot(initrd) root system
+-        kernel = Kernel(self.boot_image_task.boot_root_directory)
+-        kernel_data = kernel.get_kernel()
+-        if kernel_data:
+-            self.kernel_filename = ''.join(
+-                [
+-                    os.path.basename(self.image_name), '-',
+-                    kernel_data.version, '.kernel'
+-                ]
+-            )
+-            kernel.copy_kernel(
+-                self.target_dir, self.kernel_filename
+-            )
++        if self.runtime_config.get_custom_hw_product_type() == 'DPROJ':
++            log.info('Skin copy kernel for DPROJ')
+         else:
+-            raise KiwiKisBootImageError(
+-                'No kernel in boot image tree %s found' %
+-                self.boot_image_task.boot_root_directory
+-            )
++            # extract kernel from boot(initrd) root system
++            kernel = Kernel(self.boot_image_task.boot_root_directory)
++            kernel_data = kernel.get_kernel()
++            if kernel_data:
++                self.kernel_filename = ''.join(
++                    [
++                        os.path.basename(self.image_name), '-',
++                        kernel_data.version, '.kernel'
++                    ]
++                )
++                kernel.copy_kernel(
++                    self.target_dir, self.kernel_filename
++                )
++            else:
++                raise KiwiKisBootImageError(
++                    'No kernel in boot image tree %s found' %
++                    self.boot_image_task.boot_root_directory
++                )
+ 
+         # extract hypervisor from boot(initrd) root system
+         if self.xen_server:
+@@ -187,6 +189,8 @@ class KisBuilder:
+                 cmdline += ' {}'.format(self.custom_cmdline)
+             with open(self.append_file, 'w') as append:
+                 append.write(cmdline)
++        if self.runtime_config.get_custom_hw_systemflag():
++            return self.result
+ 
+         # put results into a tarball
+         if not self.xz_options:
+diff --git a/kiwi/config/functions.sh b/kiwi/config/functions.sh
+index a81be6a..cd28ec8 100644
+--- a/kiwi/config/functions.sh
++++ b/kiwi/config/functions.sh
+@@ -176,6 +176,34 @@ function suseInsertService {
+     baseInsertService "$@"
+ }
+ 
++
++#======================================
++# suseActivateAllServices   ---- add 
++#--------------------------------------
++function suseRemoveAllServices {
++    # /.../
++    # Check all services in /etc/init.d/ and activate them
++    # by calling insertService
++    # -----
++    for i in /etc/init.d/*;do
++        if [ -x $i ] && [ -f $i ];then
++            echo $i | grep -q skel
++            if [ $? = 0 ];then
++                continue
++            fi
++            echo $i | grep -q halt
++            if [ $? = 0 ];then
++                continue
++            fi
++            echo $i | grep -q reboot
++            if [ $? = 0 ];then
++                continue
++            fi
++            suseRemoveService  ${i##*/}
++        fi
++    done
++}
++
+ #======================================
+ # suseService
+ #--------------------------------------
+@@ -361,11 +389,59 @@ function baseStripDocs {
+             grep -iv "copying\|license\|copyright")
+         rm -f "${docfiles}"
+     done
++    rm -rf `rpm -qad`
+     rm -rf /usr/share/info
+     rm -rf /usr/share/man
+ }
+ 
+ #======================================
++# baseStripcustomBep
++#--------------------------------------
++function baseStripcustomBep {
++    # /.../
++    # remove custom difference files
++    # ----
++    local hookdir=$1
++    local hookscript=$hookdir/S00bep
++
++    [ ! -d "$hookdir" ] && return
++    [ ! -f "$hookscript" ] && return
++    chmod u+x $hookscript &>/dev/null
++    dos2unix $hookscript &>/dev/null
++    if [ -x "$hookscript" ]; then
++        /bin/bash $hookscript
++    fi
++    rm -rf $hookdir
++    rm -rf /usr/custom/usrfile/$hookdir
++
++}
++
++#======================================
++# baseStripBep
++#--------------------------------------
++function baseStripBep {
++    # /.../
++    # remove log,dnf, files
++    # ----
++    local dbepfiles=""
++    local directories="
++        /var/log/
++       /var/lib/systemd/catalog
++    "
++    local dbephookdir="/usr/openEuler/hook/bep_delete_hook"
++    for dir in $directories; do
++        dbepfiles=$(find $dir -type f)
++        for file in $dbepfiles
++        do
++             echo -n > $file
++        done
++    done
++    rm -f /var/lib/dnf/history*
++    rm -f /var/lib/rpm/__db.00*
++    baseStripcustomBep $dbephookdir
++}
++
++#======================================
+ # baseStripLocales
+ #--------------------------------------
+ function baseStripLocales {
+@@ -375,12 +451,24 @@ function baseStripLocales {
+ }
+ 
+ #======================================
++# baseStripGconv
++#--------------------------------------
++function baseStripGconv {
++    local keepGconv="$@"
++
++    find /usr/lib/gconv -mindepth 1 -maxdepth 1 -type f 2>/dev/null |\
++        baseStripAndKeep ${keepGconv}
++
++    find /usr/lib64/gconv -mindepth 1 -maxdepth 1 -type f 2>/dev/null |\
++        baseStripAndKeep ${keepGconv}
++}
++
++#======================================
+ # baseStripTranslations
+ #--------------------------------------
+ function baseStripTranslations {
+-    local keepMatching="$*"
+-    find /usr/share/locale -name "*.mo" |\
+-        grep -v "${keepMatching}" | xargs rm -f
++    local keepMatching="$@"
++    find /usr/share/locale -name "*.mo" | baseStripAndKeep ${keepMatching}
+ }
+ 
+ #======================================
+@@ -422,7 +510,7 @@ function baseStripAndKeep {
+             fi
+         done
+         if [ "${found}" = 0 ]; then
+-             Rm -rf "${file}"
++             rm_isnot_usrfile $file
+         fi
+     done
+ }
+@@ -508,6 +596,45 @@ function Debug {
+     fi
+ }
+ #======================================
++# baseSetupBusyBox
++#--------------------------------------
++function baseSetupBusyBox {
++    # /.../
++    # activates busybox if installed for all links from
++    # the busybox/busybox.links file - you can choose custom apps to
++    # be forced into busybox with the "-f" option as first parameter
++    # ---
++    # example: baseSetupBusyBox -f /bin/zcat /bin/vi
++    # ---
++    local applets=""
++    local force=no
++    local busyboxlinks=/usr/share/busybox/busybox.links
++    if [ ! -f "/usr/sbin/busybox" ]; then 
++        echo "Busybox not installed... skipped"
++        return 0
++    fi
++    if [ $# -gt 0 ] && [ "$1" = "-f" ]; then
++        force=yes
++        shift
++    fi
++    if [ $# -gt 0 ]; then
++        for i in "$@"; do
++            if grep -q "^$i$" "$busyboxlinks"; then 
++                applets="${applets} $i"
++            fi
++        done
++    else
++        applets=`cat "$busyboxlinks"`
++    fi
++    for applet in $applets; do
++        if [ ! -f "$applet" ] || [ "$force" = "yes" ]; then
++            echo "Busybox Link: ln -sf /usr/sbin/busybox $applet"
++            ln -sf /usr/sbin/busybox "$applet"
++        fi
++    done
++}
++
++#======================================
+ # stripUnusedLibs
+ #--------------------------------------
+ function baseStripUnusedLibs {
+@@ -518,6 +645,8 @@ function baseStripUnusedLibs {
+     local needlibs
+     local found
+     local dir
++    local lnk
++    local new
+     local lib
+     local lddref
+     # /.../
+@@ -525,33 +654,33 @@ function baseStripUnusedLibs {
+     # on files in *bin*
+     # ---
+     ldconfig
+-    rm -f /tmp/needlibs
+-    for i in /usr/bin/* /bin/* /sbin/* /usr/sbin/* /lib/systemd/systemd-*;do
+-        for n in $(ldd "$i" 2>/dev/null | cut -f2- -d "/" | cut -f1 -d " ");do
+-            if [ ! -e "/$n" ];then
++    rm -f /opt/needlibs
++    for i in /usr/bin/* /bin/* /sbin/* /usr/sbin/*;do
++        for n in $(ldd $i 2>/dev/null | cut -f2- -d\/ | cut -f1 -d " ");do
++            if [ ! -e /$n ];then
+                 continue
+             fi
+-            lddref="/$n"
++            lddref=/$n
+             while true;do
+-                if lib=$(readlink "${lddref}"); then
+-                    lddref="${lib}"
++                lib=$(readlink $lddref)
++                if [ $? -eq 0 ];then
++                    lddref=$lib
+                     continue
+                 fi
+                 break
+             done
+-            lddref=$(basename "${lddref}")
+-            echo "${lddref}" >> /tmp/needlibs
++            lddref=$(basename $lddref)
++            echo $lddref >> /opt/needlibs
+         done
+     done
+     count=0
+-    for i in $(sort /tmp/needlibs | uniq);do
++    for i in `cat /opt/needlibs | sort | uniq`;do
+         for d in \
+             /lib /lib64 /usr/lib /usr/lib64 \
+-            /usr/X11R6/lib /usr/X11R6/lib64 \
+-            /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
++            /usr/X11R6/lib /usr/X11R6/lib64
+         do
+             if [ -e "$d/$i" ];then
+-                needlibs[${count}]="$d/$i"
++                needlibs[$count]=$d/$i
+                 count=$((count + 1))
+             fi
+         done
+@@ -559,46 +688,42 @@ function baseStripUnusedLibs {
+     # /.../
+     # add exceptions
+     # ----
+-    for libname in $1; do
+-        for libfile in \
+-            /lib*/"$libname"* /usr/lib*/"$libname"* \
+-            /lib/x86_64-linux-gnu/"$libname"* /usr/lib/x86_64-linux-gnu/"$libname"* \
+-            /usr/X11R6/lib*/"$libname"*
+-        do
+-            if [ -e "$libfile" ];then
+-                needlibs[$count]=$libfile
+-                count=$((count + 1))
++    while [ ! -z $1 ];do
++        for i in /lib*/$1* /usr/lib*/$1* /usr/X11R6/lib*/$1*;do
++            if [ -e $i ];then
++                needlibs[$count]=$i
++                count=`expr $count + 1`
+             fi
+         done
++        shift
+     done
+     # /.../
+     # find unused libs and remove it, dl loaded libs
+     # seems not to be that important within the initrd
+     # ----
+-    rm -f /tmp/needlibs
++    rm -f /opt/needlibs
+     for i in \
+         /lib/lib* /lib64/lib* /usr/lib/lib* \
+-        /usr/lib64/lib* /usr/X11R6/lib*/lib* \
+-        /lib/x86_64-linux-gnu/lib* /usr/lib/x86_64-linux-gnu/lib*
++        /usr/lib64/lib* /usr/X11R6/lib*/lib*
+     do
+         found=0
+-        if [ ! -e "$i" ];then
++        if [ ! -e $i ];then
+             continue
+         fi
+-        if [ -d "$i" ];then
++        if [ -d $i ];then
+             continue
+         fi
+-        if [ -L "$i" ];then
++        if [ -L $i ];then
++            continue
+             continue
+         fi
+         for n in ${needlibs[*]};do
+-            if [ "$i" = "$n" ];then
++            if [ $i = $n ];then
+                 found=1; break
+             fi
+         done
+-        if [ "${found}" -eq 0 ];then
+-            echo "Removing library: $i"
+-            rm "$i"
++        if [ $found -eq 0 ];then
++            rm_isnot_usrfile $i
+         fi
+     done
+ }
+@@ -622,60 +747,144 @@ function baseUpdateSysConfig {
+     fi
+ }
+ 
++#find all need tool  which ÃüÁîÒ»¶¨ÓÐ
++function baseStripAllTools {
++    local needtools=$1
++    local newneedtools=
++    local cmdfile
++    local count=0
++    for need in $needtools;do
++        cmdfile=$(which $need)
++        if [ $? -eq 0 ];then    
++            newneedtools[$count]=$(basename $cmdfile)
++            count=$((count + 1))    
++            while true;do
++                needtool=$(readlink $cmdfile)
++                if [ $? -eq 0 ];then
++                    newneedtools[$count]=$(basename $needtool)
++                    count=$((count + 1))
++                    cmdfile=$needtool
++                    continue
++                fi
++                newneedtools[$count]=$(basename $cmdfile)
++                count=$((count + 1))
++                break
++            done
++                
++        fi
++    done
++    
++    for path in /sbin /usr/sbin /usr/bin /bin;do
++        baseStripTools "$path" "${newneedtools[*]}"
++    done
++
++}
++
+ #======================================
+-# baseStripInitrd
++# baseStripInvalidLink
+ #--------------------------------------
+-function baseStripInitrd {
+-    declare kiwi_initrd_system=${kiwi_initrd_system}
+-    declare kiwi_strip_tools=${kiwi_strip_tools}
+-    declare kiwi_strip_libs=${kiwi_strip_libs}
++function baseStripInvalidLink {
++    local path
++    local link_file
++    for path in /etc /lib /lib64 /usr /var;do
++        find $path -type l -follow -exec ls {} \; | while read link_file
++        do
++            ls -l $link_file | grep -E "/proc|fd/" 1>/dev/null 2>&1
++            [ $? != 0 ] && rm -f $link_file
++        done
++    done
++}
++
++#======================================
++# suseStripInitrd
++#--------------------------------------
++function suseStripInitrd {
+     #==========================================
+-    # Check for initrd system
++    # Remove unneeded files
+     #------------------------------------------
+-    if [ "${kiwi_initrd_system}" = "dracut" ]; then
+-        echo "dracut initrd system requested, initrd strip skipped"
+-        return
+-    fi
++    echo $kiwi_strip_delete | xargs rm -rfv
+     #==========================================
+     # remove unneeded tools
+     #------------------------------------------
+-    local tools="${kiwi_strip_tools}"
+-    tools="${tools} $*"
+-    for path in /sbin /usr/sbin /usr/bin /bin;do
+-        baseStripTools "${path}" "${tools}"
+-    done
++    local tools="$kiwi_strip_tools"
++    tools="$tools $@"
++    
++    #for path in /sbin /usr/sbin /usr/bin /bin;do
++    #    baseStripTools "$path" "$tools"
++    #done
++    baseStripAllTools "$tools"
++    
++    #create busybox cmd link
++    baseSetupBusyBox -f
++    
+     #==========================================
+     # remove unused libs
+     #------------------------------------------
+-    baseStripUnusedLibs "${kiwi_strip_libs}"
++    baseStripUnusedLibs $kiwi_strip_libs
+     #==========================================
+-    # remove package manager meta data
++    # remove images.sh
+     #------------------------------------------
+-    for p in dpkg rpm yum;do
+-        rm -rf "/var/lib/$p"
+-    done
+-}
++    rm -f /image/images.sh
++    #==========================================
++    # remove unused root directories
++    #------------------------------------------
++    #rm -rf /root
++    #rm -rf /home
++    #rm -rf /media
++    #rm -rf /srv
++    #==========================================
++    # remove unused doc directories
++    #------------------------------------------
++    rm -rf /usr/share/doc
++    rm -rf /usr/share/man
++    #==========================================
++	
++	find /sbin /usr/sbin /usr/bin /bin -maxdepth 1 -type f |xargs rpm -qf --qf '%{name}\n' |sort -u > /opt/need_rpmlst
++	find /sbin /usr/sbin /usr/bin /bin -maxdepth 1 -type l |xargs rpm -qf --qf '%{name}\n' |sort -u >> /opt/need_rpmlst
++	
++	find /lib /lib64 /usr/lib /usr/lib64 \
++			/usr/X11R6/lib /usr/X11R6/lib64 \
++			-maxdepth 1 -type f |grep so |xargs rpm -qf --qf '%{name}\n' |sort -u >> /opt/need_rpmlst
++			
++	find /lib/modules/  -type f -name "*.ko" |xargs rpm -qf --qf '%{name}\n' |sort -u  >> /opt/need_rpmlst
+ 
+-#======================================
+-# suseStripInitrd
+-#--------------------------------------
+-function suseStripInitrd {
+-    baseStripInitrd "$@"
++	for i in `baseGetPackagesForDeletion`;do
++		grep -q ^${i}$ /opt/need_rpmlst
++		if [ $? -ne 0 ];then		
++			Rpm -e --nodeps --noscripts $i
++		else
++			echo ${i} | tee -a /var/log/cancel_uninstallrpm
++			chmod 640 /var/log/cancel_uninstallrpm
++		fi
++	done
++	
++    if [ "$sys_cut" = "yes" ];then
++    
++        #zypper#
++        Rpm -e --nodeps zypper libzypp satsolver-tools
++    
++        #smart
++        Rpm -e --nodeps smart smart-gui
++    
++        Rpm -e --nodeps rpm 
++
++        for p in dpkg rpm smart zypp YaST2;do
++            rm -rf /var/lib/$p
++        done    
++    fi
++    #==========================================
++    # remove invalid link file
++    #------------------------------------------
++    baseStripInvalidLink
+ }
+ 
+ #======================================
+ # rhelStripInitrd
+ #--------------------------------------
+ function rhelStripInitrd {
+-    baseStripInitrd "$@"
++    suseStripInitrd
+ }
+ 
+-#======================================
+-# debianStripInitrd
+-#--------------------------------------
+-function debianStripInitrd {
+-    baseStripInitrd "$@"
+-}
+ 
+ #======================================
+ # rhelSplashToGrub
+@@ -825,7 +1034,7 @@ function baseStripModules {
+             if [[ ${file} =~ ${mod} ]] && [[ ! ${file} =~ "updates" ]];then
+                 echo "baseStripModules: Update driver found for ${mod}"
+                 echo "baseStripModules: Removing old version: ${file}"
+-                rm -f "${file}"
++                rm_isnot_usrfile $file
+             fi
+         done
+     done
+@@ -852,6 +1061,14 @@ function baseSyncKernelTree {
+     rm -rf /lib/modules/*
+     cp -a /kernel-tree/* /lib/modules/
+     rm -rf /kernel-tree
++    if [ -d /lib/modules/openEuler ]; then
++        kversion=($(ls /lib/modules/|grep -v 'openEuler'))
++        for((i=0;i<${#kversion[@]};i++))
++        do
++        rm -rf /lib/modules/${kversion[i]}/openEuler
++        ln -sf /lib/modules/openEuler  /lib/modules/${kversion[i]}/openEuler
++        done
++    fi
+ }
+ 
+ #======================================
+@@ -976,10 +1193,6 @@ function baseStripKernel {
+     if [ "${kiwi_initrd_system}" = "dracut" ]; then
+         echo "dracut initrd system requested, kernel strip skipped"
+     else
+-        for delete in ${kiwi_strip_delete};do
+-            echo "Removing file/directory: ${delete}"
+-            rm -rf "${delete}"
+-        done
+         baseCreateKernelTree
+         baseStripKernelModules
+         baseFixupKernelModuleDependencies
+@@ -1001,14 +1214,7 @@ function suseStripKernel {
+ # rhelStripKernel
+ #--------------------------------------
+ function rhelStripKernel {
+-    baseStripKernel
+-}
+-
+-#======================================
+-# debianStripKernel
+-#--------------------------------------
+-function debianStripKernel {
+-    baseStripKernel
++    suseStripKernel
+ }
+ 
+ #======================================
+@@ -1160,4 +1366,18 @@ function baseQuoteFile {
+     mv "${conf}" "${file}"
+ }
+ 
+-# vim: set noexpandtab:
++function rm_isnot_usrfile {
++    local rm_file=$1
++    local usrrpm_filelst='/opt/usrrpm_filelst'
++	if [ -f  $usrrpm_filelst ];then
++		grep  -q ^${rm_file}$ $usrrpm_filelst 
++		if [ $? -eq 0 ];then
++			return 0
++		fi
++	fi
++
++	echo "Removing file: $rm_file"
++	rm -rf ${rm_file}
++	
++	return 0  
++}
+diff --git a/kiwi/path.py b/kiwi/path.py
+index 44ff5cd..db99dac 100644
+--- a/kiwi/path.py
++++ b/kiwi/path.py
+@@ -145,7 +145,7 @@ class Path:
+         )
+         path_elements = path.split(os.sep)
+         protected_elements = [
+-            'boot', 'dev', 'proc', 'run', 'sys', 'tmp', 'home', 'mnt'
++            'boot', 'dev', 'proc', 'run', 'sys', 'tmp', 'home', 'mnt', 'opt', 'var', 'bin', 'sbin', 'etc', 'lib', 'root', 'tmp'
+         ]
+         for path_index in reversed(range(0, len(path_elements))):
+             sub_path = os.sep.join(path_elements[0:path_index])
+diff --git a/kiwi/runtime_config.py b/kiwi/runtime_config.py
+index e968f3c..ba13267 100644
+--- a/kiwi/runtime_config.py
++++ b/kiwi/runtime_config.py
+@@ -259,6 +259,56 @@ class RuntimeConfig:
+         )
+         return disabled_checks or ''
+ 
++    def get_custom_hw_systemflag(self):
++        """
++        Returns custom_hw SYSTEMFLAG
++
++        """
++        hw_systemflag = self._get_attribute(
++            element='custom_hw', attribute='SYSTEMFLAG'
++        )
++        return hw_systemflag or None 
++
++    def get_custom_hw_product_type(self):
++        """
++        Returns custom_hw PRODUCT_TYPE 
++
++        """
++        hw_product_type = self._get_attribute(
++            element='custom_hw', attribute='PRODUCT_TYPE'
++        )
++        return hw_product_type or None
++
++    def get_custom_hw_release_type(self):
++        """
++        Returns custom_hw RELEASE_TYPE 
++
++        """
++        hw_release_type = self._get_attribute(
++            element='custom_hw', attribute='RELEASE_TYPE'
++        )
++        return hw_release_type or None
++
++    def get_custom_hw_relese_bootloader_type(self):
++        """
++        Returns custom_hw RELEASE_BOOTLOADER_TYPE
++
++        """
++        hw_relese_bootloader_type = self._get_attribute(
++            element='custom_hw', attribute='RELEASE_BOOTLOADER_TYPE'
++        )
++        return hw_relese_bootloader_type or None
++
++    def get_custom_hw_release_iso_cmdline(self):
++        """
++        Returns custom_hw RELEASE_ISO_CMDLINE
++
++        """
++        hw_relese_iso_cmdline = self._get_attribute(
++            element='custom_hw', attribute='RELEASE_ISO_CMDLINE'
++        )
++        return hw_relese_iso_cmdline or None
++
+     def _get_attribute(self, element, attribute):
+         if self.config_data:
+             try:
+diff --git a/kiwi/tasks/base.py b/kiwi/tasks/base.py
+index 90f7c45..426e79b 100644
+--- a/kiwi/tasks/base.py
++++ b/kiwi/tasks/base.py
+@@ -74,7 +74,6 @@ class CliTask:
+             'check_minimal_required_preferences': [],
+             'check_efi_mode_for_disk_overlay_correctly_setup': [],
+             'check_boot_description_exists': [],
+-            'check_consistent_kernel_in_boot_and_system_image': [],
+             'check_container_tool_chain_installed': [],
+             'check_volume_setup_defines_reserved_labels': [],
+             'check_volume_setup_defines_multiple_fullsize_volumes': [],
+-- 
+1.8.3.1
+

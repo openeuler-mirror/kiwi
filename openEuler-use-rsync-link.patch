@@ -1,0 +1,26 @@
+diff --git a/kiwi/boot/image/builtin_kiwi.py b/kiwi/boot/image/builtin_kiwi.py
+index 1e8a3b4..8ac574a 100644
+--- a/kiwi/boot/image/builtin_kiwi.py
++++ b/kiwi/boot/image/builtin_kiwi.py
+@@ -95,9 +95,15 @@ class BootImageKiwi(BootImageBase):
+             Defaults.get_profile_file(self.boot_root_directory)
+         )
+         self.setup.import_description()
+-        self.setup.import_overlay_files(
+-            follow_links=True
+-        )
++        if self.runtime_config.get_custom_hw_systemflag():
++            self.setup.import_overlay_files(
++                follow_links=False
++            )
++        else:
++            self.setup.import_overlay_files(
++                follow_links=True
++            )
++
+         if self.runtime_config.get_custom_hw_systemflag():
+             self.setup.setup_groups()
+             self.setup.setup_users()
+-- 
+2.23.0
+
