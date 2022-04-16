@@ -9,7 +9,7 @@ Show disabled integration test builds with a clear indicator
  1 file changed, 15 insertions(+), 13 deletions(-)
 
 diff --git a/helper/build_status.sh b/helper/build_status.sh
-index 09af11c964..c740700076 100755
+index 09af11c..c740700 100755
 --- a/helper/build_status.sh
 +++ b/helper/build_status.sh
 @@ -23,9 +23,11 @@ do
@@ -29,18 +29,18 @@ index 09af11c964..c740700076 100755
  cat << EOF
  Legend:
   . succeeded
--   disabled
-- U unresolvable
-- F failed
-- B broken
-- b blocked
-- % building
-- f finished
-- s scheduled
-- L locked
-- x excluded
-- d dispatching
-- S signing
+-   disabled            
+- U unresolvable        
+- F failed              
+- B broken              
+- b blocked             
+- % building            
+- f finished            
+- s scheduled           
+- L locked              
+- x excluded            
+- d dispatching         
+- S signing             
 + D Disabled
 + U unresolvable
 + F failed
@@ -56,3 +56,6 @@ index 09af11c964..c740700076 100755
   ? buildstatus not available
  EOF
  fi
+-- 
+2.33.0
+
