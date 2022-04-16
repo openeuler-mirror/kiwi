@@ -1,8 +1,8 @@
 %{?python_enable_dependency_generator}
 
 Name:           kiwi
-Version:        9.21.5
-Release:        3
+Version:        9.21.7
+Release:        1
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -10,7 +10,6 @@ URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
 
 Patch0: backport-Added-microdnf-support-in-XML-schema.patch
-Patch1:	backport-Simplify-build_status-helpe.patch
 Patch2:	backport-Include-box-plugin-images-to-build_status.patch
 Patch3:	backport-Added-s390-SLE15-integration-tests.patch
 Patch4:	backport-Cosmetic-update-for-build-status-helper.patch
@@ -199,6 +198,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Sat Apr 16 2022 shixuantong <shixuantong@h-partners.com> - 9.21.7-1
+- update version to 9.21.7
+
 * Sat Jan 22 2022 liudabo <liudabo1@huawei.com> - 9.21.5-3
 - Type:bugfix
 - ID:NA
