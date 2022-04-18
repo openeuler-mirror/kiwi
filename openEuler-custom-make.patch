@@ -297,7 +297,7 @@ index a81be6a..cd28ec8 100644
  #======================================
  # suseService
  #--------------------------------------
-@@ -361,11 +389,59 @@ function baseStripDocs {
+@@ -361,10 +389,58 @@ function baseStripDocs {
              grep -iv "copying\|license\|copyright")
          rm -f "${docfiles}"
      done
@@ -306,7 +306,7 @@ index a81be6a..cd28ec8 100644
      rm -rf /usr/share/man
  }
  
- #======================================
++#======================================
 +# baseStripcustomBep
 +#--------------------------------------
 +function baseStripcustomBep {
@@ -353,14 +353,14 @@ index a81be6a..cd28ec8 100644
 +    baseStripcustomBep $dbephookdir
 +}
 +
-+#======================================
+ #======================================
  # baseStripLocales
  #--------------------------------------
- function baseStripLocales {
-@@ -375,12 +451,24 @@ function baseStripLocales {
+@@ -374,13 +450,25 @@ function baseStripLocales {
+         baseStripAndKeep "${keepLocales}"
  }
  
- #======================================
++#======================================
 +# baseStripGconv
 +#--------------------------------------
 +function baseStripGconv {
@@ -373,7 +373,7 @@ index a81be6a..cd28ec8 100644
 +        baseStripAndKeep ${keepGconv}
 +}
 +
-+#======================================
+ #======================================
  # baseStripTranslations
  #--------------------------------------
  function baseStripTranslations {
@@ -394,10 +394,11 @@ index a81be6a..cd28ec8 100644
          fi
      done
  }
-@@ -508,6 +596,45 @@ function Debug {
+@@ -507,6 +595,45 @@ function Debug {
+         echo "+++++> (caller:${FUNCNAME[1]}:${FUNCNAME[2]} )  $*"
      fi
  }
- #======================================
++#======================================
 +# baseSetupBusyBox
 +#--------------------------------------
 +function baseSetupBusyBox {
@@ -436,10 +437,9 @@ index a81be6a..cd28ec8 100644
 +    done
 +}
 +
-+#======================================
+ #======================================
  # stripUnusedLibs
  #--------------------------------------
- function baseStripUnusedLibs {
 @@ -518,6 +645,8 @@ function baseStripUnusedLibs {
      local needlibs
      local found
@@ -808,10 +808,10 @@ index a81be6a..cd28ec8 100644
 +	return 0  
 +}
 diff --git a/kiwi/path.py b/kiwi/path.py
-index 44ff5cd..db99dac 100644
+index b763211..b2ce909 100644
 --- a/kiwi/path.py
 +++ b/kiwi/path.py
-@@ -145,7 +145,7 @@ class Path:
+@@ -150,7 +150,7 @@ class Path:
          )
          path_elements = path.split(os.sep)
          protected_elements = [
@@ -894,5 +894,5 @@ index 90f7c45..426e79b 100644
              'check_volume_setup_defines_reserved_labels': [],
              'check_volume_setup_defines_multiple_fullsize_volumes': [],
 -- 
-1.8.3.1
+2.33.0
 
