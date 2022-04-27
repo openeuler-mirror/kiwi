@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.21.7
-Release:        1
+Release:        2
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -198,6 +198,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Wed Apr 27 2022 shixuantong <shixuantong@h-partners.com> - 9.21.7-2
+- add release for rebuild
+
 * Sat Apr 16 2022 shixuantong <shixuantong@h-partners.com> - 9.21.7-1
 - update version to 9.21.7
 
