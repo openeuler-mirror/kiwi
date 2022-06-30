@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.21.7
-Release:        2
+Release:        3
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -42,7 +42,7 @@ Requires:       yum
 Provides:       %{name}-packagemanager:yum
 
 Requires:       device-mapper-multipath dosfstools e2fsprogs
-Requires:       xorriso gdisk lvm2 mtools parted
+Requires:       gdisk lvm2 mtools parted
 Requires:       qemu-img rsync squashfs-tools tar >= 1.2.7
 Requires:       %{name}-tools = %{version}-%{release}
 %ifarch x86_64
@@ -198,6 +198,12 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Wed Jun 29 2022 tianwei <tianwei12@h-partners.com>> - 9.21.7-3
+- Type:bugfix
+- ID:NA
+- SUG:NA
+- DESC:Delete xorriso dependencies
+
 * Wed Apr 27 2022 shixuantong <shixuantong@h-partners.com> - 9.21.7-2
 - add release for rebuild
 
