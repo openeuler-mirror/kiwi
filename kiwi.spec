@@ -191,7 +191,7 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
-* Wed Aug 2021 liudabo<liudabo1@huawei.com> - 9.21.7-2
+* Wed Aug 4 2021 liudabo <liudabo1@huawei.com> - 9.21.7-2
 - Fixed cleanup of temporary directory 
 
 * Wed Aug 19 2020 dingyue <dingyue5@huawei.com> - 9.21.7-1
