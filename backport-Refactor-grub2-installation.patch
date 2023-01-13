@@ -1,0 +1,362 @@
+From f63a88867f7de17995e02a34ea4939a9fedc26ff Mon Sep 17 00:00:00 2001
+From: David Cassany <dcassany@suse.com>
+Date: Wed, 3 Mar 2021 13:17:09 +0100
+Subject: [PATCH 1/1] Refactor grub2 installation
+
+This commit refactors grub2 installation method to split it in two
+parts. Former grub2.install method was meant to run the grub2-install
+tool, however, in addition it was also running the secure boot
+installation shim-install. The install method in KIWI is skipped for
+those architectures and firmware combinations for which bios support
+doesn't exist. This was leading to skip the secure boot installation.
+
+The current approach strips the secure boot installation logic from the
+grub2.install method, so skipping the install method does not
+automatically result in skipping the secure boot installation.
+
+Fixes bsc#1182211
+References: bsn#392
+Signed-off-by: Chenxi Mao <chenxi.mao@suse.com>
+---
+ kiwi/bootloader/install/base.py            |   8 ++
+ kiwi/bootloader/install/grub2.py           | 122 ++++++++++++---------
+ kiwi/builder/disk.py                       |   1 +
+ test/unit/bootloader/install/base_test.py  |   4 +
+ test/unit/bootloader/install/grub2_test.py |  72 ++++--------
+ 5 files changed, 101 insertions(+), 106 deletions(-)
+
+diff --git a/kiwi/bootloader/install/base.py b/kiwi/bootloader/install/base.py
+index d70713b..8df04c9 100644
+--- a/kiwi/bootloader/install/base.py
++++ b/kiwi/bootloader/install/base.py
+@@ -58,3 +58,11 @@ class BootLoaderInstallBase:
+         Implementation in specialized bootloader install class required
+         """
+         raise NotImplementedError
++
++    def secure_boot_install(self):
++        """
++        Run shim-install in self.device for secure boots
++
++        Implementation in specialized bootloader install class required
++        """
++        raise NotImplementedError
+diff --git a/kiwi/bootloader/install/grub2.py b/kiwi/bootloader/install/grub2.py
+index 4b1cf09..d57351c 100644
+--- a/kiwi/bootloader/install/grub2.py
++++ b/kiwi/bootloader/install/grub2.py
+@@ -119,7 +119,7 @@ class BootLoaderInstallGrub2(BootLoaderInstallBase):
+             return False
+         return True
+ 
+-    def install(self):  # noqa: C901
++    def install(self):
+         """
+         Install bootloader on disk device
+         """
+@@ -151,55 +151,7 @@ class BootLoaderInstallGrub2(BootLoaderInstallBase):
+                 self.arch
+             )
+ 
+-        self.root_mount = MountManager(
+-            device=self.custom_args['root_device']
+-        )
+-        self.boot_mount = MountManager(
+-            device=self.custom_args['boot_device'],
+-            mountpoint=self.root_mount.mountpoint + '/boot'
+-        )
+-        if self.custom_args.get('efi_device'):
+-            self.efi_mount = MountManager(
+-                device=self.custom_args['efi_device'],
+-                mountpoint=self.root_mount.mountpoint + '/boot/efi'
+-            )
+-
+-        self.root_mount.mount()
+-
+-        if not self.root_mount.device == self.boot_mount.device:
+-            self.boot_mount.mount()
+-
+-        if self.efi_mount:
+-            self.efi_mount.mount()
+-
+-        if self.volumes:
+-            for volume_path in Path.sort_by_hierarchy(
+-                sorted(self.volumes.keys())
+-            ):
+-                volume_mount = MountManager(
+-                    device=self.volumes[volume_path]['volume_device'],
+-                    mountpoint=self.root_mount.mountpoint + '/' + volume_path
+-                )
+-                self.volumes_mount.append(volume_mount)
+-                volume_mount.mount(
+-                    options=[self.volumes[volume_path]['volume_options']]
+-                )
+-
+-        self.device_mount = MountManager(
+-            device='/dev',
+-            mountpoint=self.root_mount.mountpoint + '/dev'
+-        )
+-        self.proc_mount = MountManager(
+-            device='/proc',
+-            mountpoint=self.root_mount.mountpoint + '/proc'
+-        )
+-        self.sysfs_mount = MountManager(
+-            device='/sys',
+-            mountpoint=self.root_mount.mountpoint + '/sys'
+-        )
+-        self.device_mount.bind_mount()
+-        self.proc_mount.bind_mount()
+-        self.sysfs_mount.bind_mount()
++        self._mount_device_and_volumes()
+ 
+         # check if a grub installation could be found in the image system
+         module_directory = Defaults.get_grub_path(
+@@ -237,8 +189,13 @@ class BootLoaderInstallGrub2(BootLoaderInstallBase):
+             ]
+         )
+ 
+-        if self.firmware and self.firmware.efi_mode() == 'uefi':
+-            shim_install = self._get_shim_install_tool_name(
++    def secure_boot_install(self):
++            if self.firmware and self.firmware.efi_mode() == 'uefi' and (
++                Defaults.is_x86_arch(self.arch)
++                or 'arm' in self.arch or self.arch == 'aarch64'     # noqa: W503
++            ):
++                self._mount_device_and_volumes()
++                shim_install = self._get_shim_install_tool_name(
+                 self.root_mount.mountpoint
+             )
+             # if shim-install does _not_ exist the fallback mechanism
+@@ -257,12 +214,71 @@ class BootLoaderInstallGrub2(BootLoaderInstallBase):
+                     [
+                         'chroot', self.root_mount.mountpoint,
+                         'shim-install', '--removable',
+-                        self.install_device
++                        self.device
+                     ]
+                 )
+                 # restore the grub installer noop
+                 self._enable_grub2_install(self.root_mount.mountpoint)
+ 
++    def _mount_device_and_volumes(self):
++        if self.root_mount is None:
++            self.root_mount = MountManager(
++                device=self.custom_args['root_device']
++            )
++            self.root_mount.mount()
++
++        if self.boot_mount is None:
++            if 's390' in self.arch:
++                self.boot_mount = MountManager(
++                    device=self.custom_args['boot_device'],
++                    mountpoint=self.root_mount.mountpoint + '/boot/zipl'
++                )
++            else:
++                self.boot_mount = MountManager(
++                    device=self.custom_args['boot_device'],
++                    mountpoint=self.root_mount.mountpoint + '/boot'
++                )
++            if not self.root_mount.device == self.boot_mount.device:
++                self.boot_mount.mount()
++
++        if self.efi_mount is None and self.custom_args.get('efi_device'):
++            self.efi_mount = MountManager(
++                device=self.custom_args['efi_device'],
++                mountpoint=self.root_mount.mountpoint + '/boot/efi'
++            )
++            self.efi_mount.mount()
++
++        if self.volumes and not self.volumes_mount:
++            for volume_path in Path.sort_by_hierarchy(
++                sorted(self.volumes.keys())
++            ):
++                volume_mount = MountManager(
++                    device=self.volumes[volume_path]['volume_device'],
++                    mountpoint=self.root_mount.mountpoint + '/' + volume_path
++                )
++                self.volumes_mount.append(volume_mount)
++                volume_mount.mount(
++                    options=[self.volumes[volume_path]['volume_options']]
++                )
++        if self.device_mount is None:
++            self.device_mount = MountManager(
++                device='/dev',
++                mountpoint=self.root_mount.mountpoint + '/dev'
++            )
++            self.device_mount.bind_mount()
++        if self.proc_mount is None:
++            self.proc_mount = MountManager(
++                device='/proc',
++                mountpoint=self.root_mount.mountpoint + '/proc'
++            )
++            self.proc_mount.bind_mount()
++        if self.sysfs_mount is None:
++            self.sysfs_mount = MountManager(
++                device='/sys',
++                mountpoint=self.root_mount.mountpoint + '/sys'
++            )
++            self.sysfs_mount.bind_mount()
++
+     def _disable_grub2_install(self, root_path):
+         if os.access(root_path, os.W_OK):
+             grub2_install = ''.join(
+diff --git a/kiwi/builder/disk.py b/kiwi/builder/disk.py
+index 4096797..5789871 100644
+--- a/kiwi/builder/disk.py
++++ b/kiwi/builder/disk.py
+@@ -1099,6 +1099,7 @@ class DiskBuilder:
+             )
+             if bootloader.install_required():
+                 bootloader.install()
++            bootloader.secure_boot_install()
+ 
+         self.system_setup.call_edit_boot_install_script(
+             self.diskname, boot_device.get_device()
+diff --git a/test/unit/bootloader/install/base_test.py b/test/unit/bootloader/install/base_test.py
+index 12d4f30..059126c 100644
+--- a/test/unit/bootloader/install/base_test.py
++++ b/test/unit/bootloader/install/base_test.py
+@@ -17,3 +17,7 @@ class TestBootLoaderInstallBase:
+     def test_install_required(self):
+         with raises(NotImplementedError):
+             self.bootloader.install_required()
++
++    def test_secure_boot_install(self):
++        with raises(NotImplementedError):
++            self.bootloader.secure_boot_install()
+diff --git a/test/unit/bootloader/install/grub2_test.py b/test/unit/bootloader/install/grub2_test.py
+index a7fd6c8..1551039 100644
+--- a/test/unit/bootloader/install/grub2_test.py
++++ b/test/unit/bootloader/install/grub2_test.py
+@@ -231,6 +231,7 @@ class TestBootLoaderInstallGrub2:
+         self, mock_glob, mock_grub_path, mock_mount_manager,
+         mock_command, mock_which, mock_wipe
+     ):
++        mock_which.return_value = None
+         mock_glob.return_value = ['tmp_root/boot/grub2/grubenv']
+         mock_grub_path.return_value = \
+             self.root_mount.mountpoint + '/usr/lib/grub2/i386-pc'
+@@ -263,23 +264,16 @@ class TestBootLoaderInstallGrub2:
+                 '/dev/some-device'
+             ])
+ 
+-    @patch('kiwi.bootloader.install.grub2.Path.wipe')
+-    @patch('kiwi.bootloader.install.grub2.Path.which')
+     @patch('kiwi.bootloader.install.grub2.Command.run')
+     @patch('kiwi.bootloader.install.grub2.MountManager')
+-    @patch('kiwi.bootloader.install.grub2.Defaults.get_grub_path')
+-    @patch('kiwi.bootloader.install.grub2.glob.glob')
+     @patch('os.path.exists')
+     @patch('os.access')
+-    def test_install_secure_boot(
+-        self, mock_access, mock_exists, mock_glob, mock_grub_path,
+-        mock_mount_manager, mock_command, mock_which, mock_wipe
++    def test_secure_boot_install(
++        self, mock_access, mock_exists,
++        mock_mount_manager, mock_command
+     ):
+         mock_access.return_value = True
+         mock_exists.return_value = True
+-        mock_glob.return_value = ['tmp_root/boot/grub2/grubenv']
+-        mock_grub_path.return_value = \
+-            self.root_mount.mountpoint + '/usr/lib/grub2/i386-pc'
+         self.firmware.efi_mode.return_value = 'uefi'
+         self.boot_mount.device = self.root_mount.device
+ 
+@@ -288,22 +282,9 @@ class TestBootLoaderInstallGrub2:
+ 
+         mock_mount_manager.side_effect = side_effect
+ 
+-        self.bootloader.install()
++        self.bootloader.secure_boot_install()
+ 
+-        mock_wipe.assert_called_once_with(
+-            'tmp_root/boot/grub2/grubenv'
+-        )
+         assert mock_command.call_args_list == [
+-            call([
+-                'chroot', 'tmp_root', 'grub2-install', '--skip-fs-probe',
+-                '--directory', '/usr/lib/grub2/i386-pc',
+-                '--boot-directory', '/boot',
+-                '--target', 'i386-pc',
+-                '--modules', ' '.join(
+-                    Defaults.get_grub_bios_modules(multiboot=True)
+-                ),
+-                '/dev/some-device'
+-            ]),
+             call([
+                 'cp', '-p', 'tmp_root/usr/sbin/grub2-install',
+                 'tmp_root/usr/sbin/grub2-install.orig'
+@@ -320,55 +301,40 @@ class TestBootLoaderInstallGrub2:
+                 'tmp_root/usr/sbin/grub2-install'
+             ])
+         ]
++        self.root_mount.mount.assert_called_once_with()
++        self.volume_mount.mount.assert_called_once_with(
++            options=['subvol=@/boot/grub2']
++        )
+         self.device_mount.bind_mount.assert_called_once_with()
+         self.proc_mount.bind_mount.assert_called_once_with()
+         self.sysfs_mount.bind_mount.assert_called_once_with()
+         self.efi_mount.mount.assert_called_once_with()
+ 
+-    @patch('kiwi.bootloader.install.grub2.Path.wipe')
+     @patch('kiwi.bootloader.install.grub2.Path.which')
+-    @patch('kiwi.bootloader.install.grub2.Command.run')
+     @patch('kiwi.bootloader.install.grub2.MountManager')
+-    @patch('kiwi.bootloader.install.grub2.Defaults.get_grub_path')
+-    @patch('kiwi.bootloader.install.grub2.glob.glob')
+-    @patch('os.path.exists')
+-    def test_install_secure_boot_no_shim_install(
+-        self, mock_exists, mock_glob, mock_grub_path, mock_mount_manager,
+-        mock_command, mock_which, mock_wipe
++    def test_secure_boot_install_no_shim_install(
++        self, mock_mount_manager, mock_which
+     ):
+         mock_which.return_value = None
+-        mock_exists.return_value = True
+-        mock_glob.return_value = ['tmp_root/boot/grub2/grubenv']
+-        mock_grub_path.return_value = \
+-            self.root_mount.mountpoint + '/usr/lib/grub2/i386-pc'
+         self.firmware.efi_mode.return_value = 'uefi'
+-        self.boot_mount.device = self.root_mount.device
+ 
+         def side_effect(device, mountpoint=None):
+             return self.mount_managers.pop()
+ 
+         mock_mount_manager.side_effect = side_effect
+ 
+-        self.bootloader.install()
+-
+-        mock_wipe.assert_called_once_with(
+-            'tmp_root/boot/grub2/grubenv'
++        self.bootloader.secure_boot_install()
++        self.root_mount.mount.assert_called_once_with()
++        self.volume_mount.mount.assert_called_once_with(
++            options=['subvol=@/boot/grub2']
+         )
+-        assert mock_command.call_args_list == [
+-            call([
+-                'chroot', 'tmp_root', 'grub2-install', '--skip-fs-probe',
+-                '--directory', '/usr/lib/grub2/i386-pc',
+-                '--boot-directory', '/boot',
+-                '--target', 'i386-pc',
+-                '--modules', ' '.join(
+-                    Defaults.get_grub_bios_modules(multiboot=True)
+-                ),
+-                '/dev/some-device'
+-            ])
+-        ]
+         self.device_mount.bind_mount.assert_called_once_with()
+         self.proc_mount.bind_mount.assert_called_once_with()
+         self.sysfs_mount.bind_mount.assert_called_once_with()
++        self.efi_mount.mount.assert_called_once_with()
++        mock_which.assert_called_once_with(
++            filename='shim-install', root_dir='tmp_root'
++        )
+ 
+     @patch('kiwi.bootloader.install.grub2.Command.run')
+     @patch('kiwi.bootloader.install.grub2.MountManager')
+-- 
+2.33.0
+
