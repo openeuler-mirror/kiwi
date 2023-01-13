@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.21.7
-Release:        3
+Release:        4
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -17,6 +17,7 @@ Patch5:	backport-Added-universal-box-to-build-status-helper.patch
 Patch6: openEuler-custom-make.patch
 Patch7: openEuler-use-rsync-link.patch 
 Patch8: backport-Fixed-cleanup-of-temporary-directory.patch 
+Patch9: backport-Refactor-grub2-installation.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -198,6 +199,12 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Thu Jan 12 2023 Chenxi Mao <chenxi.mao@suse.com>> - 9.21.7-4
+- Type:bugfix
+- ID:NA
+- SUG:NA
+- DESC: Support UEFI on ARM64 platform.
+
 * Wed Jun 29 2022 tianwei <tianwei12@h-partners.com>> - 9.21.7-3
 - Type:bugfix
 - ID:NA
