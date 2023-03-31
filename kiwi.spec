@@ -2,7 +2,7 @@
 
 Name:           kiwi
 Version:        9.21.7
-Release:        4
+Release:        5
 License:        GPLv3+
 Summary:        Flexible operating system image builder
 
@@ -18,6 +18,7 @@ Patch6: openEuler-custom-make.patch
 Patch7: openEuler-use-rsync-link.patch 
 Patch8: backport-Fixed-cleanup-of-temporary-directory.patch 
 Patch9: backport-Refactor-grub2-installation.patch
+Patch10: 0000-support-specify-cc.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
@@ -132,10 +133,18 @@ Obsoletes:      dracut-%{name}-oem-dump dracut-%{name}-live
 %prep
 %autosetup -n %{name}-%{version} -p1
 
+%if "%toolchain" == "clang"
+  LDFLAGS=echo $LDFLAGS | sed s/-fno-openmp-implicit-rpath//
+%endif
+
 sed -e "s|#!/usr/bin/env python||" -i kiwi/xml_parse.py
 
 %build
 %set_build_flags
+
+%if "%toolchain" == "clang"
+  LDFLAGS=`echo $LDFLAGS | sed s/-fno-openmp-implicit-rpath//`
+%endif
 
 %py3_build
 make CFLAGS="%{build_cflags}" tools
@@ -199,6 +208,9 @@ done
 %{_mandir}/man8/%{name}*
 
 %changelog
+* Fri Apr 14 2023 jammyjellyfish <jammyjellyfish255@outlook.com> - 9.21.7-5
+- Support specify CC
+
 * Thu Jan 12 2023 Chenxi Mao <chenxi.mao@suse.com>> - 9.21.7-4
 - Type:bugfix
 - ID:NA
