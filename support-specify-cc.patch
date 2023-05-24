@@ -1,0 +1,12 @@
+diff -up  a/tools/Makefile  b/tools/Makefile
+---  a/tools/Makefile	2023-05-24 14:17:58.085674409 +0800
++++  b/tools/Makefile	2023-05-24 14:18:08.245439663 +0800
+@@ -3,7 +3,7 @@ buildroot = /
+ SRCS := $(wildcard *.c)
+ PRGS := $(patsubst %.c,%,$(SRCS))
+ 
+-CC = gcc
++CC ?= gcc
+ 
+ all: $(PRGS)
+ 

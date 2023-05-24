@@ -9,16 +9,16 @@ Summary:        Flexible operating system image builder
 URL:            http://osinside.github.io/kiwi/
 Source0:        https://files.pythonhosted.org/packages/source/k/%{name}/%{name}-%{version}.tar.gz
 
-Patch0: backport-Added-microdnf-support-in-XML-schema.patch
-Patch2:	backport-Include-box-plugin-images-to-build_status.patch
-Patch3:	backport-Added-s390-SLE15-integration-tests.patch
-Patch4:	backport-Cosmetic-update-for-build-status-helper.patch
-Patch5:	backport-Added-universal-box-to-build-status-helper.patch
-Patch6: openEuler-custom-make.patch
-Patch7: openEuler-use-rsync-link.patch 
-Patch8: backport-Fixed-cleanup-of-temporary-directory.patch 
-Patch9: backport-Refactor-grub2-installation.patch
-Patch10: 0000-support-specify-cc.patch
+Patch0:         backport-Added-microdnf-support-in-XML-schema.patch
+Patch2:         backport-Include-box-plugin-images-to-build_status.patch
+Patch3:         backport-Added-s390-SLE15-integration-tests.patch
+Patch4:         backport-Cosmetic-update-for-build-status-helper.patch
+Patch5:         backport-Added-universal-box-to-build-status-helper.patch
+Patch6:         openEuler-custom-make.patch
+Patch7:         openEuler-use-rsync-link.patch 
+Patch8:         backport-Fixed-cleanup-of-temporary-directory.patch 
+Patch9:         backport-Refactor-grub2-installation.patch
+Patch10:        support-specify-cc.patch
 
 BuildRequires:  bash-completion dracut fdupes gcc make
 BuildRequires:  python3-devel python3-setuptools shadow-utils
